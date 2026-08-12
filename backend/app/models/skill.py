@@ -25,3 +25,4 @@ class Skill(Base, TimestampMixin):
     
     # Relationships
     career_profile = relationship("CareerProfile", back_populates="skills")
+    persona_weights = relationship("PersonaSkillWeight", back_populates="skill")

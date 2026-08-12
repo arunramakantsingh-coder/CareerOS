@@ -183,7 +183,7 @@ def upgrade() -> None:
         sa.Column('confidence', sa.Float, server_default='1.0'),
         sa.Column('verified_at', sa.DateTime, nullable=True),
         sa.Column('verified_by', sa.String(100), nullable=True),
-        sa.Column('metadata', sa.JSON, nullable=True),
+        sa.Column('meta_data', sa.JSON, nullable=True),  # Renamed from 'metadata'
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )

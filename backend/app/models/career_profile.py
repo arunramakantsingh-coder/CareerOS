@@ -43,3 +43,4 @@ class CareerProfile(Base, TimestampMixin):
     achievements = relationship("Achievement", back_populates="career_profile")
     technologies = relationship("Technology", back_populates="career_profile")
     evidence_entries = relationship("CareerEvidence", back_populates="career_profile")
+    personas = relationship("Persona", back_populates="career_profile")

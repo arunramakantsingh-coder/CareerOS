@@ -1,0 +1,24 @@
+Complete CareerOS URL Testing Guide
+Here are all the URLs to test and a comprehensive VS Code script to test everything at once.
+
+📋 URLs to Test
+#	URL	What to Expect
+1	http://localhost:3000	CareerOS Dashboard
+2	http://localhost:8000	API Root JSON
+3	http://localhost:8000/docs	Swagger UI Documentation
+4	http://localhost:8000/redoc	ReDoc Documentation
+5	http://localhost:8000/api/v1/health	Health Check
+6	http://localhost:8000/api/v1/ping	Ping Response
+7	http://localhost:8000/openapi.json	OpenAPI Schema
+
+
+API Endpoints to Test
+Method	URL	Purpose
+GET	http://localhost:8000/api/v1/personas/	List personas
+POST	http://localhost:8000/api/v1/personas/	Create persona
+POST	http://localhost:8000/api/v1/jobs/analyze	Analyze job
+GET	http://localhost:8000/api/v1/jobs/	List jobs
+POST	http://localhost:8000/api/v1/matches/	Run match
+POST	http://localhost:8000/api/v1/resumes/generate	Generate resume
+POST	http://localhost:8000/api/v1/sources/	Create job source
+GET	http://localhost:8000/api/v1/sources/	List job sources

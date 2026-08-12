@@ -1,0 +1,245 @@
+# ============================================
+# CAREEROS COMPLETE TEST SUITE
+# Run from: C:\Projects\CareerOS
+# ============================================
+
+Write-Host @"
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║     🚀 CAREEROS COMPLETE TEST SUITE                      ║
+║                                                           ║
+║     Testing all APIs and services                        ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+"@ -ForegroundColor Magenta
+
+# ============================================
+# 1. CONTAINER STATUS
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📦 1. CONTAINER STATUS" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+docker compose ps
+
+# ============================================
+# 2. HEALTH CHECK
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "🏥 2. HEALTH CHECK" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/health" -UseBasicParsing
+    Write-Host "✅ Health Check: $($response.Content)" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Health Check FAILED" -ForegroundColor Red
+}
+
+# ============================================
+# 3. API ROOT
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📡 3. API ROOT" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/" -UseBasicParsing
+    Write-Host "✅ API Root: $($response.Content)" -ForegroundColor Green
+} catch {
+    Write-Host "❌ API Root FAILED" -ForegroundColor Red
+}
+
+# ============================================
+# 4. PING
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "🏓 4. PING" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/ping" -UseBasicParsing
+    Write-Host "✅ Ping: $($response.Content)" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Ping FAILED" -ForegroundColor Red
+}
+
+# ============================================
+# 5. FRONTEND
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "🖥️ 5. FRONTEND" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:3000" -UseBasicParsing
+    Write-Host "✅ Frontend: Status $($response.StatusCode)" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Frontend FAILED" -ForegroundColor Red
+}
+
+# ============================================
+# 6. DATABASE TABLES
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "🗄️ 6. DATABASE TABLES" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $tables = docker compose exec postgres psql -U careeros -d careeros -c "\dt" 2>$null
+    Write-Host "✅ Database tables:" -ForegroundColor Green
+    Write-Host $tables -ForegroundColor White
+} catch {
+    Write-Host "❌ Database check FAILED" -ForegroundColor Red
+}
+
+# ============================================
+# 7. API DOCS
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📚 7. API DOCUMENTATION" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+Write-Host "  📖 Swagger UI: http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host "  📖 ReDoc: http://localhost:8000/redoc" -ForegroundColor Cyan
+Write-Host "  📖 OpenAPI: http://localhost:8000/openapi.json" -ForegroundColor Cyan
+
+# ============================================
+# 8. PERSONA API TEST
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "👤 8. PERSONA API TEST" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+$personaBody = @{
+    user_id = "00000000-0000-0000-0000-000000000000"
+    career_profile_id = "00000000-0000-0000-0000-000000000000"
+    name = "Test Persona"
+    description = "A test persona for API testing"
+    is_active = $true
+    target_titles = @("Network Architect", "Security Architect")
+    target_industries = @("Technology", "Finance")
+} | ConvertTo-Json
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/personas/" -Method POST -Body $personaBody -ContentType "application/json" -UseBasicParsing
+    Write-Host "✅ Persona API: $($response.StatusCode)" -ForegroundColor Green
+    Write-Host $response.Content -ForegroundColor White
+} catch {
+    Write-Host "⚠️ Persona API returned error (expected if no user exists)" -ForegroundColor Yellow
+    Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# ============================================
+# 9. JOB SOURCE API TEST
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📰 9. JOB SOURCE API TEST" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+$sourceBody = @{
+    name = "Test Source"
+    source_type = "test"
+    is_active = $true
+    is_system = $false
+} | ConvertTo-Json
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/sources/" -Method POST -Body $sourceBody -ContentType "application/json" -UseBasicParsing
+    Write-Host "✅ Job Source API: $($response.StatusCode)" -ForegroundColor Green
+    Write-Host $response.Content -ForegroundColor White
+} catch {
+    Write-Host "⚠️ Job Source API returned error" -ForegroundColor Yellow
+    Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# ============================================
+# 10. LIST JOB SOURCES
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📋 10. LIST JOB SOURCES" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/sources/" -UseBasicParsing
+    Write-Host "✅ Job Sources: $($response.StatusCode)" -ForegroundColor Green
+    Write-Host $response.Content -ForegroundColor White
+} catch {
+    Write-Host "⚠️ List Sources failed" -ForegroundColor Yellow
+}
+
+# ============================================
+# 11. API RESPONSE SUMMARY
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📊 11. API RESPONSE SUMMARY" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+Write-Host @"
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  🌐 Frontend Dashboard:  http://localhost:3000             │
+│  🌐 API Root:            http://localhost:8000             │
+│  🌐 Swagger UI:          http://localhost:8000/docs        │
+│  🌐 ReDoc:               http://localhost:8000/redoc       │
+│  🌐 Health Check:        http://localhost:8000/api/v1/health │
+│  🌐 Ping:                http://localhost:8000/api/v1/ping │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+"@ -ForegroundColor Cyan
+
+# ============================================
+# 12. QUICK TEST COMMANDS
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "🔧 12. QUICK TEST COMMANDS" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+Write-Host @"
+# Test health
+curl http://localhost:8000/api/v1/health
+
+# Test ping
+curl http://localhost:8000/api/v1/ping
+
+# Test API root
+curl http://localhost:8000/
+
+# Check containers
+docker compose ps
+
+# Check logs
+docker compose logs backend --tail=20
+"@ -ForegroundColor White
+
+# ============================================
+# 13. CONTAINER LOGS (if errors found)
+# ============================================
+Write-Host "`n" + "="*60 -ForegroundColor Cyan
+Write-Host "📋 13. CONTAINER LOGS (Last 20 lines)" -ForegroundColor Yellow
+Write-Host "="*60 -ForegroundColor Cyan
+
+Write-Host "`n📦 Backend logs (last 20):" -ForegroundColor Cyan
+docker compose logs backend --tail=20 2>$null
+
+Write-Host "`n📦 Frontend logs (last 10):" -ForegroundColor Cyan
+docker compose logs frontend --tail=10 2>$null
+
+Write-Host "`n📦 PostgreSQL logs (last 5):" -ForegroundColor Cyan
+docker compose logs postgres --tail=5 2>$null
+
+# ============================================
+# 14. TEST COMPLETE
+# ============================================
+Write-Host @"
+
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║     ✅ TEST COMPLETE                                      ║
+║                                                           ║
+║     Check the output above for any errors                 ║
+║                                                           ║
+║     If all tests passed, CareerOS is fully functional!    ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+"@ -ForegroundColor Green

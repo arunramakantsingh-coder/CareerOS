@@ -26,3 +26,12 @@ The foundational architecture is in place with:
 ```bash
 git clone <repository-url>
 cd CareerOS
+
+##📊 Quick Reference Card
+Service	URL	Purpose
+Frontend	http://localhost:3000	Main application UI
+API Root	http://localhost:8000	API information
+API Docs	http://localhost:8000/docs	Interactive Swagger docs
+Health	http://localhost:8000/api/v1/health	System health status
+Ping	http://localhost:8000/api/v1/ping	Simple connectivity test
+OpenAPI	http://localhost:8000/openapi.json	API schema

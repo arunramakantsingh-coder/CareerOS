@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+﻿from fastapi import APIRouter
 from datetime import datetime
 
 router = APIRouter(tags=["health"])

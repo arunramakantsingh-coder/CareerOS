@@ -1,4 +1,4 @@
-"""Initial schema
+﻿"""Initial schema
 
 Revision ID: 001_initial_schema
 Revises: 

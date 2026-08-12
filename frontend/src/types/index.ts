@@ -1,4 +1,4 @@
-export interface HealthStatus {
+﻿export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
   database?: string;
   version: string;

@@ -1,105 +1,180 @@
-# CareerOS — Product Blueprint
+# CareerOS — Product & Architecture Blueprint
 
-## Product Position
-CareerOS is:
-- a career intelligence platform
-- a semantic job discovery engine
-- a personalized application factory
-- a career CRM
-- a global mobility/migration intelligence platform
-- an AI interview preparation system
-- a long-term career decision engine
+## 1. Product Position
 
-It is not primarily a job board, resume builder or blind auto-apply bot.
+v0.1: personal job and interview copilot.
+v0.2: global job intelligence.
+v0.3: global mobility intelligence.
+v1/v2: SaaS career operating system.
 
-## Core Loop
-1. Understand the user's career.
-2. Model capabilities/evidence.
-3. Discover jobs.
-4. Convert each JD into Job DNA.
-5. Match the job to career/persona.
-6. Evaluate location, remote, salary and migration fit.
-7. Generate application package.
-8. Obtain human approval where required.
-9. Track recruiter/interview/offer outcomes.
-10. Learn from outcomes.
+CareerOS is not primarily a job board, resume template generator or blind auto-apply bot.
 
-## Core Differentiator
-Search and ranking must understand capabilities, responsibilities, technologies, architecture domains, leadership, governance, industry, seniority and transferable skills.
+## 2. Core Data Flow
 
-A role such as `Digital Resilience Transformation Lead` may be highly relevant to Network Architect, Security Architect or Cyber Security Architect personas when the JD contains enterprise networking, Palo Alto, Zero Trust, governance, cloud connectivity, resilience and leadership.
+```text
+Career Vault
+    |
+    v
+Personas
+    |
+    v
+Job Sources / Job Inbox
+    |
+    v
+JD Intelligence
+    |
+    v
+Job DNA
+    |
+    v
+Career Ontology / Evidence Retrieval
+    |
+    v
+Matching
+    |
+    +--> hard failures
+    +--> gaps
+    +--> persona recommendation
+    +--> opportunity score
+    |
+    v
+Company Intelligence
+    |
+    v
+Application Factory
+    |
+    v
+Human Approval
+    |
+    v
+Application CRM
+    |
+    +--> Interview Intelligence
+    |
+    +--> Live Interview Assistant
+    |
+    v
+Outcome / Learning
+```
 
-## Seven Major Engines
-1. Career Intelligence Engine
-2. Persona Engine
-3. Job Intelligence Engine
-4. Matching Engine
-5. Application Factory
-6. Global Mobility Engine
-7. Career CRM & Outcome Engine
+## 3. Career Vault / Evidence Layer
 
-## Career Vault
-Authoritative source of truth for identity/contact, education, employment, responsibilities, projects/achievements, skills/technologies, architecture domains, leadership, certifications, industry/domain, preferences and evidence.
+Career Vault stores verified facts. Derived layers include persona positioning, job fit, resumes, applications, interview answers, company preparation and career recommendations. Derived layers must not overwrite source facts.
 
-## Personas
-- Network Architect
-- Security Architect
-- Cyber Security Architect
-- Infrastructure Architect
-- Network Manager
-- IT Manager
-- Custom Persona
+## 4. Career Ontology
 
-Personas alter positioning and weighting without duplicating the Career Vault.
+Connect titles, role families, skills, technologies, responsibilities, architecture domains, leadership, governance, industries and capabilities.
 
-## Career Ontology + Job DNA
-Normalized ontology connects titles, skills, technologies, responsibilities, domains and capabilities.
+This enables title-independent discovery.
 
-## Job Sources
-India: Naukri, foundit, LinkedIn, Indeed, employer pages.
-Middle East: Naukrigulf, Bayt, GulfTalent, LinkedIn, Indeed, recruiter sites.
-Australia: SEEK, Jora, Indeed, LinkedIn, employer pages.
-New Zealand: SEEK NZ, Trade Me Jobs, Indeed, LinkedIn, employer pages.
-Global Remote: FlexJobs, Remote OK, We Work Remotely, Remotive, Wellfound, employer pages.
-Additional international: Glassdoor, Dice, ZipRecruiter, recruitment firms and employer sites.
+## 5. Persona Architecture
 
-Respect terms, robots rules, API conditions and automation restrictions. Prefer APIs, feeds, alerts, permitted integrations and public employer pages.
+```text
+Career Vault
+   +-- Network Architect
+   +-- Security Architect
+   +-- Cyber Security Architect
+   +-- Infrastructure Architect
+   +-- Network Manager
+   +-- IT Manager
+   +-- Custom Persona
+```
 
-## Remote Intelligence
-Support worldwide, India-only, US-only, EU/EEA, APAC/EMEA, country-specific, timezone, employment/contractor restrictions, EOR and remote eligibility.
+## 6. Job Architecture
 
-## Global Mobility
-Initial countries: Australia, New Zealand, UAE, Qatar, Saudi Arabia, Singapore, UK, Canada and Germany/EU. Use official, versioned immigration rules. Combine career fit, visa/migration fit, salary, sponsorship, location, remote and relocation into a Global Opportunity Score.
+Every job preserves:
 
-## Application Factory
-Select best persona, retrieve relevant evidence, tailor resume, optimize ATS without keyword stuffing, generate useful cover letters/application answers/recruiter messages, run Truth & Compliance and require approval where necessary.
+```text
+advertised_title
+normalized_role_family
+```
 
-## Interview Intelligence
-Technical, architecture, leadership/behavioral, company research, personalized answer frameworks, post-interview learning and round preparation.
+The advertised title is never replaced.
 
-## Career CRM
-Track discovery, analysis, shortlist, approval, application, recruiter contact, interview, offer, rejection/withdrawal/hold, recruiter/hiring-manager records and application/resume history.
+## 7. Matching Architecture
 
-## Analytics & Learning
-Track conversion by persona, source, country, salary band, common gaps, successful positioning, role/capability clusters and recommendations.
+```text
+Eligibility / constraints
+        -> Mandatory requirements
+        -> Semantic/capability retrieval
+        -> Structured scoring
+        -> Evidence validation
+        -> Explanation
+```
 
-## SaaS
-Indicative tiers:
-- Free
-- Pro
-- Global
-- Executive
+Hard failures are explicit.
 
-Architecture should support subscriptions from the beginning while payment integration may be deferred.
+## 8. Company Intelligence
 
-## Technology Direction
-Modern responsive web app, early Firebase/managed hosting where suitable, PostgreSQL target production DB, pgvector for semantic search, object storage, Cloud Run/FastAPI for production backend and hybrid AI architecture.
+Reusable context consumed by Job Details, Application Studio, Interview Preparation and Live Interview Assistant. Preserve source attribution and timestamps.
 
-## Security
-Strict tenant isolation, encryption, least privilege, MFA, audit logs, secrets management, PII minimization, user export/deletion, prompt-injection defenses, file scanning, rate limiting and explicit consent for model-training use.
+## 9. Interview Architecture
 
-## Roadmap
-MVP-1: Career Vault, personas, job import, JD analysis, Job DNA, semantic matching, tailored resume and application tracker.
-MVP-2: more connectors, company intelligence, recruiter intelligence, remote eligibility, interview AI and analytics.
-V2: Australia/NZ/global migration, visa pathways, sponsorship, salary and relocation.
-V3: subscriptions, advanced automation, career coaches/recruiter features, B2B and broader global coverage.
+```text
+Interview Workspace
+ |
+ +-- Preparation
+ |    +-- company
+ |    +-- role
+ |    +-- technical
+ |    +-- architecture
+ |    +-- behavioral
+ |
+ +-- Mock Interview
+ |
+ +-- Live Interview Assistant
+ |    +-- live input/transcription
+ |    +-- question detection
+ |    +-- context retrieval
+ |    +-- Career Vault evidence
+ |    +-- answer guidance
+ |    +-- notes
+ |
+ +-- Outcome
+      +-- questions
+      +-- performance
+      +-- gaps
+      +-- next-round preparation
+```
+
+## 10. Web GUI Architecture
+
+Use the current Next.js/TypeScript/Tailwind direction, reusable components, typed API client and real backend contracts.
+
+Required v0.1 workflows must be accessible through the GUI.
+
+Lovable exports belong under `design-reference/` and are visual reference only.
+
+## 11. AI Architecture
+
+```text
+AI Service Interface
+       |
+       +-- local model
+       +-- cloud model
+       +-- future provider
+```
+
+Keep domain logic provider-neutral. Prefer deterministic logic -> retrieval -> lightweight model -> stronger model when justified.
+
+## 12. Security Architecture
+
+Cross-cutting security includes authentication, authorization, tenant context, secrets, validation, audit, secure uploads, prompt-injection defense, SSRF defense, privacy controls and rate limiting.
+
+## 13. Connector Architecture
+
+```text
+discover(criteria)
+fetch(job_reference)
+normalize(raw_job)
+validate(normalized_job)
+deduplicate(job)
+health_check()
+rate_limit_status()
+```
+
+Use only permitted access methods.
+
+## 14. Version Architecture
+
+See `CAREEROS_VERSION_ARCHITECTURE.md` for the canonical version/module matrix. Do not duplicate that matrix here.

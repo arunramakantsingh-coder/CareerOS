@@ -1,82 +1,179 @@
 # CareerOS — Development Roadmap
 
-## Development Model
-Use:
-`AGENTS.md` + relevant specification + one current task.
+## 1. Development Model
 
-Complete one task, test it, review it, then move to the next.
+Use `AGENTS.md` + current project MD files + one current task.
 
-## Phase 0 — Repository Reconciliation
-Inspect current repository, compare against Specification/Blueprint, reconcile old assessment vs current code, no modifications.
+Complete one vertical task, test it, review it, document it, then move to the next.
 
-## Phase 1 — Foundation Repair
-Verify dependencies, Docker, PostgreSQL, pgvector, Alembic, frontend and backend builds.
+Do not optimize for phase count. Optimize for a working end-to-end user outcome.
 
-## Phase 2 — Database Integrity
-Reconcile models/migrations, relationships, indexes, ownership, evidence and vector-ready fields.
+## 2. Version Growth
 
-## Phase 3 — Authentication & Tenant Security
-Registration, login, secure hashing, JWT, current-user, tenant context, RBAC and protected APIs.
+```text
+v0.1 Personal Job & Interview Copilot
+        ->
+v0.2 Global Job Intelligence
+        ->
+v0.3 Global Mobility
+        ->
+v1/v2 SaaS
+```
 
-## Phase 4 — Security Hardening
-Exceptions, request IDs, logging, rate limiting, validation, secure uploads, SSRF/prompt-injection defenses.
+## 3. v0.1 Vertical Slices
 
-## Phase 5 — Testing Foundation
-pytest, pytest-asyncio, database/API/auth/tenant tests, CI, frontend build checks.
+### Slice 0 — Documentation & Repository Alignment
+- align MD control plane
+- define version/module architecture
+- define AI/human/GitHub workflow
+- define safe-upload policy
+- define PowerShell-first implementation
+- establish design-reference boundary
 
-## Phase 6 — Career Vault
-Career data CRUD, evidence, provenance and CV upload.
+### Slice 1 — Repository Verification
+- assess `main`
+- verify dependencies/builds
+- verify database/migrations
+- verify APIs
+- verify frontend build
+- establish baseline test evidence
 
-## Phase 7 — Persona Engine
-Network Architect, Security Architect, Cyber Security Architect, Infrastructure Architect, Network Manager, IT Manager and Custom.
+### Slice 2 — Career Vault + Personas
+- usable Career Vault
+- CV import
+- evidence/provenance
+- six default personas
+- custom persona
+- persona weights
 
-## Phase 8 — Job Intelligence
-Manual JD import, normalization, dedupe, extraction, Job DNA and mandatory/preferred separation.
+### Slice 3 — Job Inbox + JD Intelligence
+- permitted/manual job import
+- Job Inbox
+- parsing
+- role family
+- capabilities
+- responsibilities
+- technologies
+- mandatory/preferred requirements
 
-## Phase 9 — Career Ontology + Semantic Matching
-Capability ontology, embeddings, retrieval, configurable scoring, hard failures and explanations.
+### Slice 4 — Job DNA + Matching
+- Job DNA
+- ontology foundation
+- evidence retrieval
+- configurable scoring
+- hard failures
+- explanations
+- persona recommendation
 
-## Phase 10 — pgvector
-Vector infrastructure, provider abstraction, indexes, retrieval and caching/versioning.
+### Slice 5 — Application Factory
+- JD-to-evidence mapping
+- tailored resume
+- ATS alignment without keyword stuffing
+- Truth & Compliance
+- cover letter
+- answers
+- recruiter messages
+- human approval
 
-## Phase 11 — Resume Studio + Truth Agent
-JD-to-evidence, tailored resume, ATS alignment, truth validation and immutable versions.
+### Slice 6 — Application CRM
+- state machine
+- recruiters/hiring managers
+- interviews
+- notes
+- offers
+- outcomes
+- version history
 
-## Phase 12 — Application Factory
-Cover letter, answers, recruiter/hiring-manager messages and approval.
+### Slice 7 — Company Intelligence
+- permitted research
+- company profile
+- role context
+- relevant technology/organizational signals
+- recruiter/hiring context where permitted
+- interview themes
 
-## Phase 13 — Application CRM
-State machine, recruiter, interviews, offers, notes, reminders, versions and history.
+### Slice 8 — Interview Intelligence
+- technical
+- architecture
+- cybersecurity
+- behavioral/leadership
+- company preparation
+- question prediction
+- mock interview
+- round tracking
 
-## Phase 14 — Remote Intelligence
-Worldwide vs restricted, timezone, work authorization, employment model, relocation and sponsorship.
+### Slice 9 — Live Interview Assistant
+- live session
+- transcription/input
+- question detection
+- retrieval
+- evidence retrieval
+- answer guidance
+- notes
+- post-interview outcome
 
-## Phase 15 — Company + Interview Intelligence
-Permitted company research, role context and evidence-backed interview preparation.
+### Slice 10 — Web GUI
+- dashboard
+- Career Vault
+- personas
+- Job Inbox
+- Job Details
+- Company Intelligence
+- Application Studio
+- Applications
+- Interview Preparation
+- Live Interview Assistant
+- Analytics
+- Settings
 
-## Phase 16 — Global Mobility
-Australia first, New Zealand next, then UAE, Qatar, Saudi Arabia, Singapore, UK, Canada and Germany/EU. Use official versioned rules.
+### Slice 11 — v0.1 End-to-End Validation
 
-## Phase 17 — Frontend
-Dashboard, Career Vault, Personas, Jobs, Applications, Global Mobility, Interviews, Analytics, Settings. Use Lovable as visual reference; connect to real backend APIs.
+```text
+Career Vault -> Persona -> Job -> JD -> Job DNA -> Match -> Company Intelligence -> Application -> Truth -> Approval -> Interview -> Live Assistant -> Outcome
+```
 
-## Phase 18 — Job Connectors
-Start with manual import, permitted employer pages and generic feed/API framework. Add portals subject to their access conditions.
+## 4. v0.2 — Global Job Intelligence
 
-## Phase 19 — Analytics
-Discovery, shortlist, applications, interviews, offers, acceptance, rejection by persona/source/country/salary/capability.
+- permitted global connectors
+- feeds/APIs/employer pages
+- global normalization/deduplication
+- remote intelligence
+- global ranking
+- recruiter/company intelligence expansion
+- source analytics
+- capability/role clustering
+- Global Opportunity Score
 
-## Phase 20 — AI Orchestration & Cost
-Provider abstraction, embeddings, cost tracking, caching, model routing and selective evidence retrieval.
+## 5. v0.3 — Global Mobility
 
-## Phase 21 — Production Hardening
-Logging, metrics, backups, security, Docker, Nginx, environment separation, performance and CI/CD.
+Priority:
+1. Australia
+2. New Zealand
+3. UAE
+4. Qatar
+5. Saudi Arabia
+6. Singapore
+7. UK
+8. Canada
+9. Germany/EU
 
-## Phase 22 — SaaS Entitlements
-Free, Pro, Global, Executive; server-side usage enforcement. Defer payment gateway until commercialization.
+Deliver versioned official migration rules, occupation mapping, skills assessment, sponsorship, salary/qualification/language factors and relocation feasibility.
 
-## Phase 23 — End-to-End Acceptance
-User → Career Vault → Personas → JD → Job DNA → Match → Hard failures → Resume → Truth Agent → Application Package → Approval → CRM → Remote Fit → Migration Fit, plus tenant isolation, migrations, frontend build, backend tests and security tests.
+## 6. v1/v2 — SaaS
 
-## Operating Rule
-Never mark a phase complete because code exists. It is complete only when the implementation works, relevant tests/builds pass and no known critical regression remains.
+- subscriptions
+- entitlements
+- usage governance
+- billing
+- advanced automation
+- recruiter/coach/B2B
+- partner integrations
+- production scale
+
+## 7. Out-of-Sequence Restrictions
+
+Do not delay v0.1 for broad SaaS marketing, mass connector coverage, country-wide immigration rules, speculative infrastructure or large analytics systems.
+
+## 8. Completion Rule
+
+A slice is complete only when implementation exists, relevant tests/builds pass, the workflow works, GitHub reflects the change, documentation is current and no known critical regression remains.

@@ -1,54 +1,91 @@
 # CareerOS — Technical & Functional Specification
 
-## Product
-CareerOS — AI-Powered Global Career Operating System.
+## 1. Product Identity
 
-Target: web-based multi-tenant SaaS for job seekers, international career movers and executives.
+CareerOS is an AI-powered Global Career Operating System.
 
-## Functional Modules
-- Authentication & Tenant: sign-up, login, password reset, OAuth-ready architecture, profile, tenant isolation, consent/security.
-- Career Vault: CV import, career parsing, employment, skills, projects, certifications, achievements, evidence.
-- Persona Manager: personas, target roles, countries, salary, work mode, industries, priorities.
-- Job Discovery: connectors, ingestion, normalization, deduplication, search, saved jobs.
-- JD Intelligence: JD parsing, requirements, role family, seniority, Job DNA.
-- Matching: technical, experience, seniority, leadership, industry, location, salary, remote, migration.
-- Resume Studio: persona selection, evidence retrieval, tailored resume, version comparison, truth validation.
-- Application Factory: cover letter, application answers, recruiter messages, review and approval.
-- Application CRM: pipeline, recruiters, interviews, offers, rejection, notes, reminders, versions.
-- Company Intelligence: company profile, role context, technology signals, recruiter/hiring manager information.
-- Interview AI: question prediction, personalized preparation, mock interview, round tracking.
-- Global Mobility: country profiles, migration rules, eligibility, sponsorship and relocation.
-- Remote Intelligence: scope, restrictions, timezone, employment model, eligibility.
-- Analytics: funnel, source performance, persona performance, conversion and recommendations.
-- Billing: plans, entitlements and usage; payment can be deferred.
+The immediate objective is a working **Personal Job & Interview Copilot** for one real user, followed by global job intelligence, global mobility and eventually SaaS.
 
-## Core Data Model
-User, Tenant, CareerProfile, Employment, Project, Skill, Technology, Certification, Achievement, Evidence, Persona, JobSource, Job, JobDNA, JobMatch, Resume, Application, Recruiter, Interview, Offer, Country, Visa, MigrationRule, MigrationProfile, Subscription, AuditLog.
+## 2. Version Strategy
 
-## Job Connector Contract
-Every connector supports:
-`discover(criteria)`, `fetch(job_reference)`, `normalize(raw_job)`, `validate(normalized_job)`, `deduplicate(job)`, `health_check()`, `rate_limit_status()`.
+See `docs/CAREEROS_VERSION_ARCHITECTURE.md` for the canonical module-by-version allocation.
 
-## Job Processing
-1. Receive permitted job source data.
-2. Validate minimum fields.
-3. Normalize title/company/location/salary/work mode.
-4. Canonicalize JD.
-5. Compute duplicate fingerprint.
-6. Merge duplicates while retaining source references.
-7. Extract requirements.
-8. Separate mandatory/preferred.
-9. Generate Job DNA.
-10. Generate embeddings where useful.
-11. Store searchable representation.
-12. Match against personas.
-13. Generate explanations/gaps.
-14. Rank opportunity.
+```text
+v0.1 Personal Job & Interview Copilot
+v0.2 Global Job Intelligence
+v0.3 Global Mobility
+v1/v2 SaaS
+```
 
-## Job DNA
-Role family, seniority, capabilities, technologies, responsibilities, architecture domains, leadership, governance, industry, location, employment model, salary and constraints.
+## 3. v0.1 Functional Scope
 
-## Matching
+- Authentication & tenant foundation
+- Career Vault
+- six default personas + custom persona
+- Job Inbox / job discovery
+- JD Intelligence
+- Job DNA
+- Career Ontology foundation
+- semantic/capability matching
+- mandatory/preferred separation
+- Resume Studio
+- Truth & Compliance
+- Application Factory
+- Application CRM
+- Company Intelligence
+- Interview Intelligence
+- Live Interview Assistant
+- Web GUI
+- basic analytics/outcome tracking
+- remote intelligence foundation
+
+## 4. Core Product Principle
+
+CareerOS is career-centric, not job-title-centric.
+
+Career Vault is the factual source of truth.
+
+Jobs become Job DNA.
+
+Matching occurs at capability/evidence level.
+
+The employer's advertised job title is preserved as the application title.
+
+## 5. Career Vault
+
+Authoritative record containing identity/contact, education, employment, responsibilities, projects, achievements, skills, technologies, architecture domains, leadership, certifications, industry/domain, preferences and evidence/provenance.
+
+## 6. Personas
+
+Default:
+- Network Architect
+- Security Architect
+- Cyber Security Architect
+- Infrastructure Architect
+- Network Manager
+- IT Manager
+- Custom Persona
+
+Personas change positioning, weighting and presentation without duplicating Career Vault facts.
+
+## 7. Job Discovery
+
+Search must consider advertised title, synonyms, role family, responsibilities, capabilities, technologies, architecture domains, leadership, governance, seniority, industry, transferable skills, location, remote, employment type, salary, work authorization and migration/relocation fit.
+
+A role can be relevant even if its title differs significantly from a persona.
+
+## 8. JD Intelligence and Job DNA
+
+Pipeline:
+
+```text
+Source -> Validation -> Normalization -> Canonical JD -> Dedup -> Requirements -> Mandatory/Preferred -> Job DNA -> Retrieval/Embeddings -> Matching -> Explanation
+```
+
+Job DNA includes advertised title, role family, seniority, capabilities, technologies, responsibilities, architecture domains, leadership, governance, industry, location, employment model, salary, work authorization constraints, remote constraints, migration/relocation constraints and requirement classes.
+
+## 9. Matching
+
 Initial configurable model:
 - Technical/capability 25%
 - Relevant experience 20%
@@ -60,47 +97,115 @@ Initial configurable model:
 - Migration/relocation 5%
 - Certification/qualification 5%
 
-Mandatory failure is separate from semantic score.
+Mandatory failures remain separate from semantic scoring.
 
-## Match Output
-Overall, career, technical, experience, seniority, location, salary, remote and migration scores; matched, partial and missing requirements; hard failures; recommended persona; human-readable explanation.
+Outputs include overall and category scores, matched/partial/missing requirements, hard failures, persona recommendation and explanation.
 
-## Resume Workflow
-Select job/persona → retrieve evidence → JD-to-evidence mapping → draft → ATS alignment → Truth Agent → flag unsupported claims → approved content → immutable version.
+## 10. Application Title Rule
 
-## Truth & Compliance
-Every material claim maps to evidence. Dates, technologies and certifications must be supported. No invented metrics, employers, projects or unsupported experience.
+Example:
 
-## Application State
-DISCOVERED → ANALYZED → SHORTLISTED → READY_FOR_REVIEW → APPROVED → APPLIED → RECRUITER_CONTACT → INTERVIEW → OFFER → ACCEPTED. Alternate: REJECTED, WITHDRAWN, ON_HOLD.
+```text
+Advertised title: Technology Resilience Lead
+Persona: Cyber Security Architect
+Application title: Technology Resilience Lead
+```
 
-## Global Mobility
-Migration rules are structured/versioned data. Support occupation mapping, skills assessment, points/rules, salary thresholds, sponsorship, qualifications, language, effective dates and official references.
+## 11. Application Factory
 
-Australia/New Zealand support occupation classification, skills assessment, employer sponsorship, points pathways where applicable, state/regional pathways, salary/occupation constraints, English/qualification factors, job-to-occupation compatibility and versioned rules.
+Job -> Persona -> Career Evidence -> JD-to-Evidence Mapping -> Tailored Resume -> ATS Alignment -> Truth & Compliance -> Application Package -> Human Approval -> CRM.
 
-## Remote Intelligence
-Determine geographic scope, timezone compatibility, employment model, country restrictions, relocation requirement and remote fit.
+Content may not contain unsupported career facts.
 
-## AI Orchestration
-Career Parser, JD Analyzer, Semantic Matcher, Resume Agent, Application Agent, Migration Agent, Interview Agent, Company Research Agent, Truth Agent and Career Strategy Agent.
+## 12. Company Intelligence
 
-Use deterministic parsing where possible, embeddings for first-stage retrieval, fast models for classification/extraction, stronger models for shortlisted generation, caching and selective evidence retrieval.
+v0.1 requirement. Provide permitted-source company profile, role context, relevant technology/organizational signals, recent relevant developments and interview preparation signals, with source attribution where appropriate.
 
-## Security
-Tenant-scoped authorization, encryption, MFA-ready architecture, secure OAuth, externalized secrets, audit logs, file scanning, rate limiting, prompt-injection defenses, SSRF protection, PII minimization, export/deletion and explicit consent for model-training use.
+## 13. Interview Intelligence
 
-## APIs
-/auth, /career, /personas, /jobs, /matches, /resumes, /applications, /interviews, /companies, /mobility, /sources, /analytics, /billing.
+v0.1 requirement:
+- technical
+- architecture
+- cybersecurity
+- behavioral/leadership
+- company
+- question prediction
+- answer frameworks
+- mock interviews
+- round tracking
+- notes/outcomes
 
-## UI
-Landing, Onboarding, Dashboard, Career Vault, Personas, Job Search, Job Details, Application Studio, Applications, Interviews, Global Mobility, Analytics and Settings.
+## 14. Live Interview Assistant
 
-## MVP Acceptance
-A user can create an account, import a CV, obtain a structured Career Vault, create at least five personas, analyze a JD, generate Job DNA, match semantically/structurally, understand why it matched, see gaps/hard failures, generate a JD-specific resume, trace material claims to evidence, review/approve an application package, track applications, distinguish international remote restrictions and support future migration modules without core redesign.
+v0.1 core requirement.
 
-## Non-Functional
-99.5% MVP availability target, 2–3 second common interactions excluding AI generation, scalable backend, OWASP-aligned security, logs/metrics/error tracking/audit logs, data portability, explainable matching and AI usage tracking.
+Architecture boundaries:
+- live session
+- transcription/input
+- question detection
+- context retrieval
+- Career Vault evidence retrieval
+- answer guidance
+- notes
+- session state
+- outcome
 
-## Final Principle
-CareerOS must remain career-centric, not job-title-centric. Career Vault/Career Graph is the source of truth; jobs become Job DNA; matching occurs at capability/evidence level; applications are evidence-backed; global mobility is a connected decision layer.
+Distinguish verified facts, suggested framing, uncertainty and unsupported claims.
+
+## 15. Web GUI
+
+v0.1 core requirement:
+- Landing
+- Onboarding
+- Dashboard
+- Career Vault
+- Personas
+- Job Inbox/Search
+- Job Details
+- Company Intelligence
+- Application Studio
+- Applications
+- Interview Preparation
+- Live Interview Assistant
+- Analytics
+- Settings
+
+Lovable material is visual reference only.
+
+## 16. Application CRM
+
+```text
+DISCOVERED -> ANALYZED -> SHORTLISTED -> READY_FOR_REVIEW -> APPROVED -> APPLIED -> RECRUITER_CONTACT -> INTERVIEW -> OFFER -> ACCEPTED
+```
+
+Alternate states: `REJECTED`, `WITHDRAWN`, `ON_HOLD`.
+
+Track recruiter/hiring manager, interviews, notes, reminders, versions and outcomes.
+
+## 17. Remote Intelligence
+
+Evaluate geographic scope, country restrictions, timezone, employment model, EOR/contractor constraints, work authorization, relocation and sponsorship.
+
+## 18. Global Mobility
+
+Structured/versioned rules for country, occupation mapping, skills assessment, sponsorship, salary thresholds, qualifications, language, effective dates and official references. Informational only; not legal advice.
+
+Australia and New Zealand are priority markets.
+
+## 19. AI Orchestration
+
+Logical services/agents include Career Parser, JD Analyzer, Job DNA Generator, Semantic Matcher, Resume Agent, Application Agent, Migration Agent, Interview Agent, Live Interview Assistant, Company Research Agent, Truth Agent and Career Strategy Agent.
+
+Provider abstraction is mandatory.
+
+## 20. Security
+
+Tenant authorization, secure authentication, MFA-ready architecture, secrets externalization, audit logs, file scanning, rate limiting, prompt-injection defenses, SSRF protection, PII minimization and export/deletion controls.
+
+## 21. Non-Functional Direction
+
+Responsive web app, scalable backend, PostgreSQL/pgvector direction, explainable matching, evidence-backed AI, observability, data portability and AI usage tracking.
+
+## 22. Long-Term Modules
+
+See `CAREEROS_VERSION_ARCHITECTURE.md` for the complete final-state module map and version allocation.

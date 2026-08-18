@@ -295,3 +295,54 @@ Do not merge a PR without human approval.
 ## 22. Completion Standard
 
 A task is complete only when implementation exists, relevant tests/builds actually pass, the app still starts where applicable, no known critical regression remains, GitHub reflects the change, and documentation reflects the new state.
+
+## Repository Synchronization Rule
+
+GitHub `main` is the canonical verified baseline for the project.
+
+Before every milestone or repository review:
+
+```text
+1. git fetch --all --prune
+2. Identify current branch
+3. Identify local HEAD commit
+4. Identify origin/main commit
+5. Check working-tree status
+6. Check branch tracking / ahead-behind state
+```
+
+Classify the repository as:
+
+```text
+SYNCED
+AHEAD
+BEHIND
+DIVERGED
+DIRTY
+```
+
+Never assume the local project and GitHub are identical.
+
+ChatGPT and DeepSeek must review the actual branch and commit associated with the milestone.
+
+## Troubleshooting Baseline Rule
+
+When testing or runtime troubleshooting reports a problem, establish:
+
+```text
+GitHub verified baseline
+        ->
+local branch
+        ->
+local commit
+        ->
+uncommitted changes
+        ->
+runtime/environment state
+        ->
+database/migration state
+        ->
+configuration
+```
+
+Only then attribute a defect to application source code.

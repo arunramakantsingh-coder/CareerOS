@@ -153,3 +153,25 @@ Stop for clarification when requirements conflict, destructive migration is prop
 ## Definition of Done
 
 Done means implementation exists, applicable tests/builds pass, repository state is understood, PR is reviewable, documentation is current and known critical regressions are resolved.
+
+## Repository Synchronization & Troubleshooting Rule
+
+GitHub `main` is the canonical verified baseline.
+
+Before every milestone or repository review run:
+
+```powershell
+git fetch --all --prune
+git status --short --branch
+git branch -vv
+git rev-parse HEAD
+git rev-parse origin/main
+```
+
+Classify the repository as `SYNCED`, `AHEAD`, `BEHIND`, `DIVERGED`, or `DIRTY`.
+
+ChatGPT and DeepSeek must review the actual GitHub branch and commit associated with the milestone.
+
+When testing fails, establish the GitHub baseline, local branch, local commit, uncommitted changes, runtime/environment, database/migrations and configuration before diagnosing source code.
+
+Use `scripts/Verify-RepositorySync.ps1` from the project root.

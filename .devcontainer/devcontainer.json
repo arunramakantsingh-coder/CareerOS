@@ -6,10 +6,19 @@
   ],
   "service": "devcontainer",
   "workspaceFolder": "/workspace/CareerOS",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "moby": true
+    }
+  },
+
   "forwardPorts": [
     3000,
     8000
   ],
+
   "portsAttributes": {
     "3000": {
       "label": "CareerOS Frontend",
@@ -20,6 +29,7 @@
       "onAutoForward": "notify"
     }
   },
+
   "customizations": {
     "vscode": {
       "extensions": [
@@ -31,5 +41,7 @@
       ]
     }
   },
-  "remoteUser": "vscode"
+
+  "remoteUser": "vscode",
+  "postCreateCommand": "docker compose up -d --build"
 }

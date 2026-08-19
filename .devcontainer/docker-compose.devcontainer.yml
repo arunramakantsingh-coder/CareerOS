@@ -1,11 +1,16 @@
 ﻿services:
   devcontainer:
     image: mcr.microsoft.com/devcontainers/base:ubuntu
+
     container_name: careeros_devcontainer
+
     volumes:
       - .:/workspace/CareerOS
+
     working_dir: /workspace/CareerOS
+
     command: sleep infinity
+
     depends_on:
       postgres:
         condition: service_healthy

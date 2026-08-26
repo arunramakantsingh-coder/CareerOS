@@ -20,7 +20,7 @@ class CountryResponse(BaseResponse):
     official_website: Optional[str]
     is_active: bool
     description: Optional[str]
-    metadata: Optional[Dict[str, Any]]
+    meta_data: Optional[Dict[str, Any]]
 
 
 # ============================================
@@ -161,3 +161,4 @@ class EligibilityResponse(BaseModel):
     recommendations: List[str]
     disclaimer: str
     sources: List[Dict[str, Any]]
+

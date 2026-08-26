@@ -1,0 +1,167 @@
+.pytest_cache/.gitignore
+.pytest_cache/CACHEDIR.TAG
+.pytest_cache/README.md
+.pytest_cache/v/cache/nodeids
+.pytest_cache/v/cache/stepwise
+Complete CareerOS URL Testing Guide
+Complete Test Script
+Lovable/Analytics ΓÇö CareerOS.html
+Lovable/Analytics ΓÇö CareerOS_files/_flock.js.download
+Lovable/Analytics ΓÇö CareerOS_files/css2
+Lovable/Analytics ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Analytics ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Analytics — CareerOS.html
+Lovable/Analytics — CareerOS_files/_flock.js.download
+Lovable/Analytics — CareerOS_files/css2
+Lovable/Analytics — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Analytics — CareerOS_files/styles-B69a5jTI.css
+Lovable/Analytics ╬ô├ç├╢ CareerOS.html
+Lovable/Applications ΓÇö CareerOS.html
+Lovable/Applications ΓÇö CareerOS_files/_flock.js.download
+Lovable/Applications ΓÇö CareerOS_files/css2
+Lovable/Applications ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Applications ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Applications — CareerOS.html
+Lovable/Applications — CareerOS_files/_flock.js.download
+Lovable/Applications — CareerOS_files/css2
+Lovable/Applications — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Applications — CareerOS_files/styles-B69a5jTI.css
+Lovable/Applications ╬ô├ç├╢ CareerOS.html
+Lovable/Career Vault ΓÇö CareerOS.html
+Lovable/Career Vault ΓÇö CareerOS_files/_flock.js.download
+Lovable/Career Vault ΓÇö CareerOS_files/css2
+Lovable/Career Vault ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Career Vault ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Career Vault — CareerOS.html
+Lovable/Career Vault — CareerOS_files/_flock.js.download
+Lovable/Career Vault — CareerOS_files/css2
+Lovable/Career Vault — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Career Vault — CareerOS_files/styles-B69a5jTI.css
+Lovable/Career Vault ╬ô├ç├╢ CareerOS.html
+Lovable/Dashboard ΓÇö CareerOS.html
+Lovable/Dashboard ΓÇö CareerOS_files/_flock.js.download
+Lovable/Dashboard ΓÇö CareerOS_files/css2
+Lovable/Dashboard ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Dashboard ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Dashboard — CareerOS.html
+Lovable/Dashboard — CareerOS_files/_flock.js.download
+Lovable/Dashboard — CareerOS_files/css2
+Lovable/Dashboard — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Dashboard — CareerOS_files/styles-B69a5jTI.css
+Lovable/Dashboard ╬ô├ç├╢ CareerOS.html
+Lovable/Global Mobility ΓÇö CareerOS.html
+Lovable/Global Mobility ΓÇö CareerOS_files/_flock.js.download
+Lovable/Global Mobility ΓÇö CareerOS_files/css2
+Lovable/Global Mobility ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Global Mobility ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Global Mobility — CareerOS.html
+Lovable/Global Mobility — CareerOS_files/_flock.js.download
+Lovable/Global Mobility — CareerOS_files/css2
+Lovable/Global Mobility — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Global Mobility — CareerOS_files/styles-B69a5jTI.css
+Lovable/Global Mobility ╬ô├ç├╢ CareerOS.html
+Lovable/Interviews ΓÇö CareerOS.html
+Lovable/Interviews ΓÇö CareerOS_files/_flock.js.download
+Lovable/Interviews ΓÇö CareerOS_files/css2
+Lovable/Interviews ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Interviews ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Interviews — CareerOS.html
+Lovable/Interviews — CareerOS_files/_flock.js.download
+Lovable/Interviews — CareerOS_files/css2
+Lovable/Interviews — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Interviews — CareerOS_files/styles-B69a5jTI.css
+Lovable/Interviews ╬ô├ç├╢ CareerOS.html
+Lovable/Jobs ΓÇö CareerOS.html
+Lovable/Jobs ΓÇö CareerOS_files/_flock.js.download
+Lovable/Jobs ΓÇö CareerOS_files/css2
+Lovable/Jobs ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Jobs ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Jobs — CareerOS.html
+Lovable/Jobs — CareerOS_files/_flock.js.download
+Lovable/Jobs — CareerOS_files/css2
+Lovable/Jobs — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Jobs — CareerOS_files/styles-B69a5jTI.css
+Lovable/Jobs ╬ô├ç├╢ CareerOS.html
+Lovable/Personas ΓÇö CareerOS.html
+Lovable/Personas ΓÇö CareerOS_files/_flock.js.download
+Lovable/Personas ΓÇö CareerOS_files/css2
+Lovable/Personas ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Personas ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Personas — CareerOS.html
+Lovable/Personas — CareerOS_files/_flock.js.download
+Lovable/Personas — CareerOS_files/css2
+Lovable/Personas — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Personas — CareerOS_files/styles-B69a5jTI.css
+Lovable/Personas ╬ô├ç├╢ CareerOS.html
+Lovable/Settings ΓÇö CareerOS.html
+Lovable/Settings ΓÇö CareerOS_files/_flock.js.download
+Lovable/Settings ΓÇö CareerOS_files/css2
+Lovable/Settings ΓÇö CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Settings ΓÇö CareerOS_files/styles-B69a5jTI.css
+Lovable/Settings — CareerOS.html
+Lovable/Settings — CareerOS_files/_flock.js.download
+Lovable/Settings — CareerOS_files/css2
+Lovable/Settings — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Settings — CareerOS_files/styles-B69a5jTI.css
+Lovable/Settings ╬ô├ç├╢ CareerOS.html
+reports/CareerOS-Compare-20260824-121755/AddedOnly.txt
+reports/CareerOS-Compare-20260824-121755/ConfigReview.txt
+reports/CareerOS-Compare-20260824-121755/FilePresenceMatrix.csv
+reports/CareerOS-Compare-20260824-121755/GitStatus.txt
+reports/CareerOS-Compare-20260824-121755/MissingFromEach.txt
+reports/CareerOS-Compare-20260824-121755/RootDirectories.txt
+reports/CareerOS-Compare-20260824-121755/SourceFileHashes.csv
+reports/CareerOS-Compare-20260824-121755/Summary.txt
+reports/CareerOS-Compare-20260824-121819/AddedOnly.txt
+reports/CareerOS-Compare-20260824-121819/ConfigReview.txt
+reports/CareerOS-Compare-20260824-121819/FilePresenceMatrix.csv
+reports/CareerOS-Compare-20260824-121819/GitStatus.txt
+reports/CareerOS-Compare-20260824-121819/MissingFromEach.txt
+reports/CareerOS-Compare-20260824-121819/RootDirectories.txt
+reports/CareerOS-Compare-20260824-121819/SourceFileHashes.csv
+reports/CareerOS-Compare-20260824-121819/Summary.txt
+scripts/Run-CareerOS-V01-Fix-NextJS-UI-v2.ps1
+scripts/Run-CareerOS-V01-Fix-NextJS-UI-v3.ps1
+scripts/Run-CareerOS-V01-Fix-NextJS-UI-v4.ps1
+scripts/Run-CareerOS-V01-Fix-NextJS-UI-v5.ps1
+scripts/Run-CareerOS-V01-Fix-NextJS-UI-v6.ps1
+scripts/Run-CareerOS-V01-Fix-NextJS-UI.ps1
+scripts/Run-CareerOS-V01-FullValidation.ps1
+scripts/Run-CareerOS-V01.ps1
+scripts/Verify-RepositorySync.ps1
+test-results/CareerOS-V01-Validation-20260824-141406/CareerOS-V01-Validation.txt
+test-results/CareerOS-V01-Validation-20260824-141406/backend.log
+test-results/CareerOS-V01-Validation-20260824-141406/frontend.log
+test-results/CareerOS-V01-Validation-20260824-141406/postgres.log
+test-results/CareerOS-V01-Validation-20260825-194808/CareerOS-V01-Validation.txt
+test-results/CareerOS-V01-Validation-20260825-194808/backend.log
+test-results/CareerOS-V01-Validation-20260825-194808/frontend.log
+test-results/CareerOS-V01-Validation-20260825-194808/postgres.log
+test-results/MASTER-UI-20260825-220917/MASTER-UI-REPORT.txt
+test-results/MASTER-UI-20260825-220917/before-compose-ps.txt
+test-results/MASTER-UI-20260825-220917/compose-ps.txt
+test-results/MASTER-UI-20260826-021753/MASTER-UI-REPORT.txt
+test-results/MASTER-UI-20260826-021753/before-compose-ps.txt
+test-results/MASTER-UI-20260826-021753/compose-ps.txt
+test-results/MASTER-UI-20260826-021753/frontend.log
+test-results/MASTER-UI-20260826-021944/MASTER-UI-REPORT.txt
+test-results/MASTER-UI-20260826-021944/before-compose-ps.txt
+test-results/MASTER-UI-20260826-021944/compose-ps.txt
+test-results/MASTER-UI-20260826-021944/frontend.log
+test-results/MASTER-UI-20260826-022146/MASTER-UI-REPORT.txt
+test-results/MASTER-UI-20260826-022146/before-compose-ps.txt
+test-results/MASTER-UI-20260826-022146/compose-ps.txt
+test-results/MASTER-UI-20260826-022146/frontend.log
+test-results/UI-FIX-20260825-200315/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-200315/docker-compose.yml.before-ui-fix
+test-results/UI-FIX-20260825-200951/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-200951/docker-compose.yml.before-ui-fix
+test-results/UI-FIX-20260825-201143/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-201143/docker-compose.yml.before-ui-fix
+test-results/UI-FIX-20260825-201721/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-201721/docker-command.cmd
+test-results/UI-FIX-20260825-201721/docker-compose.yml.before-ui-fix-v4
+test-results/UI-FIX-20260825-201837/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-201837/docker-compose.yml.before-ui-fix-v5
+test-results/UI-FIX-20260825-202652/UI-FIX-REPORT.txt
+test-results/UI-FIX-20260825-202652/docker-compose.yml.before-ui-fix-v6

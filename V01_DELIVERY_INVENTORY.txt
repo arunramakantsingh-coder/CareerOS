@@ -1,0 +1,24 @@
+CareerOS v0.1 Personal Job & Interview Copilot
+Clean local validation package.
+
+Included source areas:
+.devcontainer
+.vscode
+backend
+database
+docker
+docs
+frontend
+Lovable
+nginx
+scripts
+tests
+
+Excluded intentionally:
+.git
+__pycache__
+.next
+node_modules
+pytest caches
+local database volumes
+real .env / credential files

@@ -1,0 +1,230 @@
+CareerOS v0.1 Personal Job & Interview Copilot - Final Delivery
+Built from: FULL delivery + container-safe docker-compose + one-script workflow + master Lovable reference assets
+Excluded: .git metadata, node_modules, .next, __pycache__, pytest caches, local DB volumes, real secrets
+
+Total files: 225
+.devcontainer/devcontainer.json
+.devcontainer/docker-compose.devcontainer.yml
+.gitignore
+.vscode/extensions.json
+.vscode/settings.json
+AGENTS.md
+Complete CareerOS URL Testing Guide
+Complete Test Script
+Lovable/Analytics ΓÇö CareerOS.html
+Lovable/Analytics — CareerOS_files/_flock.js.download
+Lovable/Analytics — CareerOS_files/css2
+Lovable/Analytics — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Analytics — CareerOS_files/styles-B69a5jTI.css
+Lovable/Applications ΓÇö CareerOS.html
+Lovable/Applications — CareerOS_files/_flock.js.download
+Lovable/Applications — CareerOS_files/css2
+Lovable/Applications — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Applications — CareerOS_files/styles-B69a5jTI.css
+Lovable/Career Vault ΓÇö CareerOS.html
+Lovable/Career Vault — CareerOS_files/_flock.js.download
+Lovable/Career Vault — CareerOS_files/css2
+Lovable/Career Vault — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Career Vault — CareerOS_files/styles-B69a5jTI.css
+Lovable/Dashboard ΓÇö CareerOS.html
+Lovable/Dashboard — CareerOS_files/_flock.js.download
+Lovable/Dashboard — CareerOS_files/css2
+Lovable/Dashboard — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Dashboard — CareerOS_files/styles-B69a5jTI.css
+Lovable/Global Mobility ΓÇö CareerOS.html
+Lovable/Global Mobility — CareerOS_files/_flock.js.download
+Lovable/Global Mobility — CareerOS_files/css2
+Lovable/Global Mobility — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Global Mobility — CareerOS_files/styles-B69a5jTI.css
+Lovable/Interviews ΓÇö CareerOS.html
+Lovable/Interviews — CareerOS_files/_flock.js.download
+Lovable/Interviews — CareerOS_files/css2
+Lovable/Interviews — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Interviews — CareerOS_files/styles-B69a5jTI.css
+Lovable/Jobs ΓÇö CareerOS.html
+Lovable/Jobs — CareerOS_files/_flock.js.download
+Lovable/Jobs — CareerOS_files/css2
+Lovable/Jobs — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Jobs — CareerOS_files/styles-B69a5jTI.css
+Lovable/Personas ΓÇö CareerOS.html
+Lovable/Personas — CareerOS_files/_flock.js.download
+Lovable/Personas — CareerOS_files/css2
+Lovable/Personas — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Personas — CareerOS_files/styles-B69a5jTI.css
+Lovable/Settings ΓÇö CareerOS.html
+Lovable/Settings — CareerOS_files/_flock.js.download
+Lovable/Settings — CareerOS_files/css2
+Lovable/Settings — CareerOS_files/index-BTJkJEsp.js.download
+Lovable/Settings — CareerOS_files/styles-B69a5jTI.css
+README.md
+Start-Docker.ps1
+V01_DELIVERY_INVENTORY.txt
+VERIFY-V01.ps1
+backend/.env.example
+backend/Dockerfile
+backend/alembic/env.py
+backend/alembic/versions/001_initial_schema.py
+backend/alembic/versions/002_career_vault.py
+backend/alembic/versions/003_persona_engine.py
+backend/alembic/versions/004_job_intelligence.py
+backend/alembic/versions/005_match_engine.py
+backend/alembic/versions/006_resume_ai.py
+backend/alembic/versions/007_job_source_connector.py
+backend/alembic/versions/008_semantic_discovery.py
+backend/alembic/versions/009_remote_eligibility.py
+backend/alembic/versions/010_migration_engine.py
+backend/alembic/versions/011_authentication_foundation.py
+backend/alembic/versions/012_v01_product.py
+backend/alembic.ini
+backend/app/__init__.py
+backend/app/api/__init__.py
+backend/app/api/auth.py
+backend/app/api/discovery.py
+backend/app/api/health.py
+backend/app/api/health_check.py
+backend/app/api/job.py
+backend/app/api/job_source.py
+backend/app/api/match.py
+backend/app/api/migration.py
+backend/app/api/persona.py
+backend/app/api/persona_skill_weight.py
+backend/app/api/remote.py
+backend/app/api/resume.py
+backend/app/api/v01_product.py
+backend/app/core/config.py
+backend/app/core/database.py
+backend/app/core/security.py
+backend/app/main.py
+backend/app/models/__init__.py
+backend/app/models/achievement.py
+backend/app/models/base.py
+backend/app/models/capability_taxonomy.py
+backend/app/models/career_evidence.py
+backend/app/models/career_preference.py
+backend/app/models/career_profile.py
+backend/app/models/certification.py
+backend/app/models/country.py
+backend/app/models/education.py
+backend/app/models/employment.py
+backend/app/models/job.py
+backend/app/models/job_discovery.py
+backend/app/models/job_dna.py
+backend/app/models/job_listing.py
+backend/app/models/job_responsibility.py
+backend/app/models/job_skill.py
+backend/app/models/job_source.py
+backend/app/models/job_source_connection.py
+backend/app/models/match.py
+backend/app/models/match_dimension.py
+backend/app/models/match_recommendation.py
+backend/app/models/migration_pathway.py
+backend/app/models/migration_profile.py
+backend/app/models/migration_rule.py
+backend/app/models/occupation_mapping.py
+backend/app/models/persona.py
+backend/app/models/persona_skill_weight.py
+backend/app/models/project.py
+backend/app/models/remote_eligibility.py
+backend/app/models/resume_evidence_link.py
+backend/app/models/resume_section.py
+backend/app/models/resume_version.py
+backend/app/models/skill.py
+backend/app/models/technology.py
+backend/app/models/tenant.py
+backend/app/models/user.py
+backend/app/models/v01_product.py
+backend/app/models/visa.py
+backend/app/schemas/auth.py
+backend/app/schemas/base.py
+backend/app/schemas/discovery.py
+backend/app/schemas/health.py
+backend/app/schemas/job.py
+backend/app/schemas/job_source.py
+backend/app/schemas/match.py
+backend/app/schemas/migration.py
+backend/app/schemas/persona.py
+backend/app/schemas/persona_skill_weight.py
+backend/app/schemas/remote.py
+backend/app/schemas/resume.py
+backend/app/utils/connector_interface.py
+backend/app/utils/ingestion_pipeline.py
+backend/app/utils/jd_parser.py
+backend/app/utils/job_dna_generator.py
+backend/app/utils/logging.py
+backend/app/utils/match_engine.py
+backend/app/utils/migration_engine.py
+backend/app/utils/remote_engine.py
+backend/app/utils/resume_generator.py
+backend/app/utils/seed_capability_taxonomy.py
+backend/app/utils/seed_migration_data.py
+backend/app/utils/semantic_discovery.py
+backend/app/utils/test_connector.py
+backend/dockerfile.dockerfile
+backend/prisma/.gitkeep
+backend/requirements.txt
+backend/src/config/.gitkeep
+backend/src/controllers/.gitkeep
+backend/src/middleware/.gitkeep
+backend/src/models/.gitkeep
+backend/src/routes/.gitkeep
+backend/src/services/.gitkeep
+backend/src/types/.gitkeep
+backend/src/utils/.gitkeep
+backend/tests/test_auth_security.py
+backend/tests/test_core.py
+database/.gitkeep
+docker/postgres/init/.gitkeep
+docker-compose.yml
+docs/.gitkeep
+docs/CAREEROS_BLUEPRINT.md
+docs/CAREEROS_DEVELOPMENT_WORKFLOW.md
+docs/CAREEROS_ONE_SCRIPT_WORKFLOW.md
+docs/CAREEROS_PROJECT_ASSESSMENT.md
+docs/CAREEROS_PROJECT_STATUS.md
+docs/CAREEROS_REPOSITORY_SYNC.md
+docs/CAREEROS_SPEC.md
+docs/CAREEROS_V01_DELIVERY.md
+docs/CAREEROS_VERSION_ARCHITECTURE.md
+docs/DEVELOPMENT_ROADMAP.md
+frontend/.gitignore
+frontend/Dockerfile
+frontend/next-env.d.ts
+frontend/next.config.js
+frontend/package.json
+frontend/postcss.config.js
+frontend/public/.gitkeep
+frontend/src/app/.gitkeep
+frontend/src/app/analytics/page.tsx
+frontend/src/app/application-studio/page.tsx
+frontend/src/app/applications/page.tsx
+frontend/src/app/career-vault/page.tsx
+frontend/src/app/company-intelligence/page.tsx
+frontend/src/app/global-mobility/page.tsx
+frontend/src/app/globals.css
+frontend/src/app/interviews/page.tsx
+frontend/src/app/jobs/[id]/page.tsx
+frontend/src/app/jobs/page.tsx
+frontend/src/app/layout.tsx
+frontend/src/app/live-interview/page.tsx
+frontend/src/app/login/page.tsx
+frontend/src/app/onboarding/page.tsx
+frontend/src/app/page.tsx
+frontend/src/app/personas/page.tsx
+frontend/src/app/settings/page.tsx
+frontend/src/components/.gitkeep
+frontend/src/components/CareerOSShell.tsx
+frontend/src/hooks/.gitkeep
+frontend/src/lib/.gitkeep
+frontend/src/lib/api/client.ts
+frontend/src/styles/.gitkeep
+frontend/src/types/.gitkeep
+frontend/src/types/index.ts
+frontend/tailwind.config.js
+frontend/tsconfig.json
+nginx/.gitkeep
+scripts/.gitkeep
+scripts/Run-CareerOS-V01.ps1
+scripts/Verify-RepositorySync.ps1
+tests/e2e/.gitkeep
+tests/integration/.gitkeep
+tests/unit/.gitkeep

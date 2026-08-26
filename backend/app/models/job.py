@@ -45,3 +45,4 @@ class Job(Base, TimestampMixin):
     resumes = relationship("ResumeVersion", back_populates="job", cascade="all, delete-orphan")
     discoveries = relationship("JobDiscovery", back_populates="job", cascade="all, delete-orphan")
     remote_eligibilities = relationship("RemoteEligibility", back_populates="job", cascade="all, delete-orphan")
+    skill_gaps = relationship("SkillGapObservation", back_populates="job", cascade="all, delete-orphan")

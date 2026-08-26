@@ -36,6 +36,7 @@ from app.models.migration_rule import MigrationRule
 from app.models.occupation_mapping import OccupationMapping
 from app.models.migration_pathway import MigrationPathway
 from app.models.migration_profile import MigrationProfile
+from app.models.skill_gap import SkillGapObservation, SkillGapAggregate
 
 __all__ = [
     "Base",
@@ -76,6 +77,8 @@ __all__ = [
     "OccupationMapping",
     "MigrationPathway",
     "MigrationProfile",
+    "SkillGapObservation",
+    "SkillGapAggregate",
     "Application",
     "CompanyIntelligence",
     "Interview",
@@ -84,3 +87,4 @@ __all__ = [
     "LiveInterviewSession",
 ]
 from app.models.v01_product import Application, CompanyIntelligence, Interview, TruthCheck, AuditLog, LiveInterviewSession
+

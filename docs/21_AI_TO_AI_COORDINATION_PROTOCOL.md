@@ -320,7 +320,6 @@ ChatGPT must not ask DeepSeek to implement the entire product in one instruction
 
 ---
 
-
 # 6A. SINGLE ACTIVE MILESTONE — HARD SYNCHRONIZATION RULE
 
 CareerOS must have exactly ONE `ACTIVE MILESTONE` at any time.
@@ -1257,7 +1256,6 @@ VERIFY
 
 This protocol is mandatory for CareerOS milestone development.
 
-
 ---
 
 # 29. Synchronization Principle
@@ -1277,3 +1275,179 @@ GITHUB RELEASE CANDIDATE MILESTONE
 ```
 
 If those four diverge, stop development and reconcile the state before continuing.
+
+---
+
+# 30. ABSOLUTE EVIDENCE RULE — NO PREDECLARED TEST RESULTS
+
+DeepSeek MUST NOT describe a test as PASS, VERIFIED, COMPLETE or SUCCESSFUL
+until the test has actually been executed in the current environment.
+
+These are different states:
+
+PLANNED
+TEST SCRIPT WRITTEN
+TEST READY
+TEST EXECUTED
+TEST PASSED
+TEST FAILED
+NOT EXECUTED
+
+The following are NOT evidence:
+
+- a test script that has been written
+- an expected output
+- a predicted result
+- a simulated result
+- a manually printed "PASS"
+- a commit message claiming a result
+- an implementation summary claiming a result
+- an assertion that the code "should work"
+
+A test is "PASSED" only when:
+
+1. the command actually executed;
+2. the output was captured;
+3. the output supports the stated result.
+
+## Commit-message rule
+
+DeepSeek MUST NOT create a commit message that states:
+
+- test passed
+- gate complete
+- health check passed
+- migration fixed
+- QA complete
+- verified
+
+unless those results have actually been executed and evidenced.
+
+Commit messages describe IMPLEMENTED changes.
+
+QA status belongs to ChatGPT after evidence review.
+
+## Evidence separation
+
+Every milestone report must separate:
+
+### IMPLEMENTATION STATUS
+
+What code was written.
+
+### TEST PLAN
+
+What commands should be run.
+
+### ACTUAL TEST EXECUTION
+
+Commands that were actually executed.
+
+### ACTUAL TEST OUTPUT
+
+The real captured output.
+
+### QA STATUS
+
+ChatGPT's independent assessment.
+
+Example:
+
+TEST PLAN:
+`curl.exe http://localhost:8000/api/v1/health`
+
+ACTUAL EXECUTION:
+NOT YET EXECUTED
+
+ACTUAL RESULT:
+NOT AVAILABLE
+
+QA STATUS:
+NOT VERIFIED
+
+# 30. ABSOLUTE EVIDENCE RULE — NO PREDECLARED TEST RESULTS
+
+DeepSeek MUST NOT describe a test as PASS, VERIFIED, COMPLETE or SUCCESSFUL
+until the test has actually been executed in the current environment.
+
+These are different states:
+
+PLANNED
+TEST SCRIPT WRITTEN
+TEST READY
+TEST EXECUTED
+TEST PASSED
+TEST FAILED
+NOT EXECUTED
+
+The following are NOT evidence:
+
+- a test script that has been written
+- an expected output
+- a predicted result
+- a simulated result
+- a manually printed "PASS"
+- a commit message claiming a result
+- an implementation summary claiming a result
+- an assertion that the code "should work"
+
+A test is "PASSED" only when:
+
+1. the command actually executed;
+2. the output was captured;
+3. the output supports the stated result.
+
+## Commit-message rule
+
+DeepSeek MUST NOT create a commit message that states:
+
+- test passed
+- gate complete
+- health check passed
+- migration fixed
+- QA complete
+- verified
+
+unless those results have actually been executed and evidenced.
+
+Commit messages describe IMPLEMENTED changes.
+
+QA status belongs to ChatGPT after evidence review.
+
+## Evidence separation
+
+Every milestone report must separate:
+
+### IMPLEMENTATION STATUS
+
+What code was written.
+
+### TEST PLAN
+
+What commands should be run.
+
+### ACTUAL TEST EXECUTION
+
+Commands that were actually executed.
+
+### ACTUAL TEST OUTPUT
+
+The real captured output.
+
+### QA STATUS
+
+ChatGPT's independent assessment.
+
+Example:
+
+TEST PLAN:
+`curl.exe http://localhost:8000/api/v1/health`
+
+ACTUAL EXECUTION:
+NOT YET EXECUTED
+
+ACTUAL RESULT:
+NOT AVAILABLE
+
+QA STATUS:
+NOT VERIFIED

@@ -1,5 +1,5 @@
 ﻿from datetime import datetime
-from sqlalchemy import Column, DateTime, String, Boolean, Integer, ForeignKey, JSON  # ✅ Added JSON
+from sqlalchemy import Column, DateTime, String, Boolean, Integer, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -17,6 +17,8 @@ class User(Base, TimestampMixin):
     
     email = Column(String(255), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=True)
+    password_hash = Column(String(255), nullable=True)  # ✅ ADDED - matches migration 011
+    
     locale = Column(String(10), default="en-US")
     timezone = Column(String(50), default="UTC")
     consent_flags = Column(String(500), nullable=True)
@@ -38,3 +40,5 @@ class User(Base, TimestampMixin):
     discoveries = relationship("JobDiscovery", back_populates="user")
     remote_eligibilities = relationship("RemoteEligibility", back_populates="user")
     migration_profiles = relationship("MigrationProfile", back_populates="user", uselist=False)
+    skill_gaps = relationship("SkillGapObservation", back_populates="user")
+    skill_gap_aggregates = relationship("SkillGapAggregate", back_populates="user")

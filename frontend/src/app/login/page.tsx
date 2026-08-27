@@ -1,5 +1,131 @@
- 'use client';
-import {useState} from 'react'; import type { FormEvent } from 'react'; import {useRouter} from 'next/navigation'; import {apiClient} from '@/lib/api/client';
-export default function Login(){const router=useRouter();const [register,setRegister]=useState(false);const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [name,setName]=useState('');const [tenant,setTenant]=useState('Personal Workspace');const [busy,setBusy]=useState(false);const [error,setError]=useState('');
-async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{if(register){await apiClient.register({email,password,name,tenant_name:tenant});}const token=await apiClient.login({email,password});localStorage.setItem('careeros_token',token.access_token);router.replace(register?'/onboarding':'/');}catch(err:any){setError(err.message||'Unable to sign in');}finally{setBusy(false)}}
-return <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-4 py-10"><div className="mx-auto grid max-w-5xl overflow-hidden rounded-2xl border bg-background shadow-2xl md:grid-cols-2"><div className="hidden p-10 text-white md:block"><div className="mb-10 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-500">◈</span><div><div className="font-bold">CareerOS</div><div className="text-xs text-slate-300">Personal Job & Interview Copilot</div></div></div><h1 className="text-4xl font-bold leading-tight">Turn verified career evidence into better opportunities.</h1><p className="mt-5 text-slate-300">Match jobs, build applications, prepare interviews and keep every generated claim grounded in your Career Vault.</p><div className="mt-10 grid gap-3 text-sm text-slate-200"><div>✓ Evidence-first career profile</div><div>✓ Job DNA and capability matching</div><div>✓ Application and interview workflow</div></div></div><div className="p-6 sm:p-10"><div className="mb-8"><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary">CareerOS v0.1</p><h2 className="mt-2 text-3xl font-bold">{register?'Create your workspace':'Welcome back'}</h2><p className="mt-2 text-sm text-muted-foreground">{register?'Start with your personal career operating system.':'Sign in to continue to your career workspace.'}</p></div><form onSubmit={submit} className="space-y-4">{register&&<><label className="block text-sm font-medium">Name<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label><label className="block text-sm font-medium">Workspace<input required value={tenant} onChange={e=>setTenant(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label></>}<label className="block text-sm font-medium">Email<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label><label className="block text-sm font-medium">Password<input required minLength={register?8:1} type="password" value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2.5" /></label>{error&&<div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}<button disabled={busy} className="w-full rounded-lg bg-primary px-4 py-3 font-semibold text-primary-foreground">{busy?'Please wait…':register?'Create account':'Sign in'}</button></form><button onClick={()=>{setRegister(!register);setError('')}} className="mt-4 w-full text-sm font-medium text-primary">{register?'Already have an account? Sign in':'New here? Create your account'}</button></div></div></div>}
+﻿"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      await login(email, password);
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center p-2 bg-blue-100 rounded-lg mb-4">
+            <span className="text-2xl font-bold text-blue-600">CareerOS</span>
+          </div>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Or{" "}
+            <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+              create a new account
+            </Link>
+          </p>
+        </div>
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? "Signing in..." : "Sign in"}
+            </button>
+          </div>
+        </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+            onClick={() => {
+              // Google OAuth placeholder
+              alert("Google OAuth integration coming soon");
+            }}
+          >
+            Google
+          </button>
+          <button
+            className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+            onClick={() => {
+              // LinkedIn OAuth placeholder
+              alert("LinkedIn OAuth integration coming soon");
+            }}
+          >
+            LinkedIn
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

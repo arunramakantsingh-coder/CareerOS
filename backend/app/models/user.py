@@ -17,7 +17,7 @@ class User(Base, TimestampMixin):
     
     email = Column(String(255), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=True)
-    password_hash = Column(String(255), nullable=True)  # ✅ ADDED - matches migration 011
+    password_hash = Column(String(255), nullable=True)
     
     locale = Column(String(10), default="en-US")
     timezone = Column(String(50), default="UTC")
@@ -28,6 +28,7 @@ class User(Base, TimestampMixin):
     candidate_timezone = Column(String(50), nullable=True)
     candidate_authorization = Column(JSON, nullable=True)
     
+    # Relationships
     tenant = relationship("Tenant", back_populates="users")
     career_profiles = relationship("CareerProfile", back_populates="user")
     career_preferences = relationship("CareerPreference", back_populates="user", uselist=False)
@@ -42,3 +43,5 @@ class User(Base, TimestampMixin):
     migration_profiles = relationship("MigrationProfile", back_populates="user", uselist=False)
     skill_gaps = relationship("SkillGapObservation", back_populates="user")
     skill_gap_aggregates = relationship("SkillGapAggregate", back_populates="user")
+    external_identities = relationship("ExternalIdentity", back_populates="user")
+    candidate_profile = relationship("CandidateProfile", back_populates="user", uselist=False)

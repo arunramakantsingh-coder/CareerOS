@@ -59,7 +59,20 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleUploadComplete = (document: Document) => {
+  const handleUploadsComplete = (result: any) => {
+  if (result && result.results) {
+    const newDocs = result.results.map((r: any) => ({
+      id: r.document_id,
+      original_filename: r.filename,
+      status: r.status,
+    }));
+    setDocuments([...newDocs, ...documents]);
+  }
+};
+
+const handleUploadComplete = (document: Document) => {
+  setDocuments([document, ...documents]);
+};
     setDocuments([document, ...documents]);
   };
 
@@ -186,7 +199,7 @@ export default function DocumentsPage() {
         {/* Upload Section */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Document</h2>
-          <DocumentUpload onUploadComplete={handleUploadComplete} />
+          <DocumentUpload multiple={true} onUploadsComplete={handleUploadsComplete} onUploadComplete={handleUploadComplete} />
         </div>
 
         {/* Document List */}
@@ -296,3 +309,4 @@ export default function DocumentsPage() {
     </div>
   );
 }
+

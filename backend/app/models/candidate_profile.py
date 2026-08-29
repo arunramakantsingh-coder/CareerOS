@@ -27,7 +27,7 @@ class CandidateProfile(Base, TimestampMixin):
     primary_phone = Column(String(50), nullable=True)
     
     # Work preferences
-    work_preferences = Column(JSON, nullable=True)  # remote, hybrid, on-site, relocation, etc.
+    work_preferences = Column(JSON, nullable=True)
     
     # Professional
     years_experience = Column(Float, nullable=True)
@@ -39,7 +39,7 @@ class CandidateProfile(Base, TimestampMixin):
     completeness_breakdown = Column(JSON, nullable=True)
     
     # Reconciliation status
-    reconciliation_status = Column(String(20), default="pending")  # pending, in_progress, complete, conflicting
+    reconciliation_status = Column(String(20), default="pending")
     
     # Metadata
     is_active = Column(Boolean, default=True)
@@ -52,5 +52,3 @@ class CandidateProfile(Base, TimestampMixin):
     skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")
     certifications = relationship("CandidateCertification", back_populates="candidate", cascade="all, delete-orphan")
     educations = relationship("CandidateEducation", back_populates="candidate", cascade="all, delete-orphan")
-    projects = relationship("CandidateProject", back_populates="candidate", cascade="all, delete-orphan")
-    achievements = relationship("CandidateAchievement", back_populates="candidate", cascade="all, delete-orphan")

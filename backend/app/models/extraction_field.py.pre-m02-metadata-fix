@@ -38,8 +38,7 @@ class ExtractionField(Base, TimestampMixin):
     reconciliation_status = Column(String(20), nullable=True)
     
     # Metadata
-    meta_data = Column("metadata", JSON, nullable=True)
+    metadata = Column(JSON, nullable=True)
     
     # Relationships
     extraction = relationship("ExtractionResult", back_populates="field_extra")
-

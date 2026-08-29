@@ -4,18 +4,28 @@ import { useState, useRef } from "react";
 
 interface DocumentUploadProps {
   onUploadComplete?: (document: any) => void;
-  category?: string;
-  subcategory?: string;
+  onUploadsComplete?: (results: any) => void;
+  multiple?: boolean;
+  accept?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? `http://${window.location.hostname}:8000` 
+    : 'http://localhost:8000');
 
-export default function DocumentUpload({ onUploadComplete, category, subcategory }: DocumentUploadProps) {
+export default function DocumentUpload({ 
+  onUploadComplete, 
+  onUploadsComplete,
+  multiple = false,
+  accept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.tiff,.txt,.zip"
+}: DocumentUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<any>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [processingStatus, setProcessingStatus] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -37,39 +47,29 @@ export default function DocumentUpload({ onUploadComplete, category, subcategory
     setIsDragging(false);
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      handleFile(files[0]);
+      handleFiles(files);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFile(files[0]);
+      handleFiles(files);
     }
   };
 
-  const handleFile = async (file: File) => {
+  const handleFiles = async (files: FileList) => {
     setIsUploading(true);
     setError(null);
-    setProgress(0);
+    setUploadedFiles([]);
+    setProcessingStatus("");
 
-    // Validate file type
-    const validTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
-    if (!validTypes.includes(file.type)) {
-      setError("Please upload a PDF, DOC, DOCX, or TXT file");
-      setIsUploading(false);
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File size exceeds 5MB limit");
-      setIsUploading(false);
-      return;
-    }
+    // Check for ZIP files
+    const fileArray = Array.from(files);
+    const zipFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.zip'));
+    const regularFiles = fileArray.filter(f => !f.name.toLowerCase().endsWith('.zip'));
 
     try {
-      // Get token
       const token = localStorage.getItem("access_token");
       if (!token) {
         setError("Please sign in to upload documents");
@@ -77,51 +77,80 @@ export default function DocumentUpload({ onUploadComplete, category, subcategory
         return;
       }
 
-      // Create form data
-      const formData = new FormData();
-      formData.append("file", file);
-      if (category) formData.append("document_category", category);
-      if (subcategory) formData.append("document_subcategory", subcategory);
+      // If multiple files or ZIP, use the multi-upload endpoint
+      if (multiple || zipFiles.length > 0 || regularFiles.length > 1) {
+        const formData = new FormData();
+        fileArray.forEach(file => {
+          formData.append("files", file);
+        });
 
-      // Upload with progress tracking
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${API_URL}/api/v1/documents/upload`, true);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        setProcessingStatus(`Uploading ${fileArray.length} files...`);
 
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          setProgress(Math.round(percentComplete));
-        }
-      };
+        const response = await fetch(`${API_URL}/api/v1/documents/upload-multiple`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          body: formData,
+        });
 
-      xhr.onload = () => {
-        if (xhr.status === 200 || xhr.status === 201) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadedFile(response);
-          setProgress(100);
-          if (onUploadComplete) onUploadComplete(response);
+        if (response.ok) {
+          const result = await response.json();
+          setUploadedFiles(result.results || []);
+          setProcessingStatus(`Upload complete: ${result.successful} files`);
+          if (onUploadsComplete) onUploadsComplete(result);
+          if (onUploadComplete && result.results && result.results.length > 0) {
+            onUploadComplete(result.results[0]);
+          }
         } else {
-          const error = JSON.parse(xhr.responseText);
+          const error = await response.json();
           setError(error.detail || "Upload failed");
         }
-        setIsUploading(false);
-      };
+      } else {
+        // Single file upload
+        const file = files[0];
+        const formData = new FormData();
+        formData.append("file", file);
 
-      xhr.onerror = () => {
-        setError("Network error. Please try again.");
-        setIsUploading(false);
-      };
+        setProcessingStatus(`Uploading ${file.name}...`);
 
-      xhr.send(formData);
+        const response = await fetch(`${API_URL}/api/v1/documents/upload`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setUploadedFiles([result]);
+          setProcessingStatus("Upload complete");
+          if (onUploadComplete) onUploadComplete(result);
+        } else {
+          const error = await response.json();
+          setError(error.detail || "Upload failed");
+        }
+      }
     } catch (err) {
-      setError("Upload failed. Please try again.");
+      setError("Network error. Please try again.");
+    } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
+  };
+
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return '📄';
+    if (['doc', 'docx'].includes(ext || '')) return '📝';
+    if (['jpg', 'jpeg', 'png', 'tiff'].includes(ext || '')) return '🖼️';
+    if (ext === 'zip') return '📦';
+    return '📎';
   };
 
   return (
@@ -140,45 +169,54 @@ export default function DocumentUpload({ onUploadComplete, category, subcategory
             <div className="flex items-center justify-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
             </div>
-            <p className="text-sm text-gray-600">Uploading...</p>
+            <p className="text-sm text-gray-600">{processingStatus || "Uploading..."}</p>
             <div className="w-full bg-gray-200 rounded-full h-2.5">
               <div
                 className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
-            <p className="text-xs text-gray-500">{progress}%</p>
           </div>
-        ) : uploadedFile ? (
+        ) : uploadedFiles.length > 0 ? (
           <div className="space-y-3">
             <div className="text-4xl">✅</div>
-            <p className="font-medium text-gray-900">{uploadedFile.original_filename}</p>
-            <p className="text-sm text-gray-500">
-              {(uploadedFile.file_size / 1024).toFixed(1)} KB • {uploadedFile.document_category || "CV"}
-            </p>
-            <p className="text-sm text-green-600">Upload complete!</p>
+            <p className="font-medium text-gray-900">{uploadedFiles.length} files uploaded</p>
+            <div className="max-h-40 overflow-y-auto">
+              {uploadedFiles.map((file, index) => (
+                <div key={index} className="flex items-center gap-2 text-sm text-gray-600 py-1 border-b border-gray-100">
+                  <span>{getFileIcon(file.filename || file.original_filename)}</span>
+                  <span className="truncate">{file.filename || file.original_filename}</span>
+                  <span className="text-xs text-green-600 ml-auto">✓</span>
+                </div>
+              ))}
+            </div>
             <button
               onClick={() => {
-                setUploadedFile(null);
+                setUploadedFiles([]);
                 setProgress(0);
                 if (fileInputRef.current) fileInputRef.current.value = "";
               }}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
-              Upload another file
+              Upload more files
             </button>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="text-5xl">📄</div>
-            <p className="text-gray-600">Drag and drop your file here, or</p>
+            <p className="text-gray-600">Drag and drop your files here, or</p>
             <button
               onClick={triggerFileInput}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Browse Files
             </button>
-            <p className="text-xs text-gray-500">Supported formats: PDF, DOC, DOCX, TXT (max 5MB)</p>
+            <p className="text-xs text-gray-500">
+              Supported: PDF, DOC, DOCX, JPG, PNG, TIFF, TXT, ZIP
+            </p>
+            <p className="text-xs text-gray-400">
+              {multiple ? "Multiple files allowed" : "Single file upload"}
+            </p>
           </div>
         )}
       </div>
@@ -186,7 +224,8 @@ export default function DocumentUpload({ onUploadComplete, category, subcategory
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx,.txt"
+        accept={accept}
+        multiple={multiple}
         onChange={handleFileSelect}
         className="hidden"
       />

@@ -4,10 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import (
-    health, health_check, auth, persona, persona_skill_weight,
-    job, match, resume, job_source, discovery, remote, migration
-)
+from app.api import health, health_check, auth, persona, persona_skill_weight, job, match, resume, job_source, discovery, remote, migration, candidate, document, extraction, v01_product
 from app.core.config import settings
 from app.core.database import engine
 from app.models import base
@@ -59,7 +56,11 @@ app.include_router(resume.router, prefix="/api/v1")
 app.include_router(job_source.router, prefix="/api/v1")
 app.include_router(discovery.router, prefix="/api/v1")
 app.include_router(remote.router, prefix="/api/v1")
-app.include_router(migration.router, prefix="/api/v1")`napp.include_router(candidate.router, prefix="/api/v1")`napp.include_router(document.router, prefix="/api/v1")`napp.include_router(extraction.router, prefix="/api/v1")
+app.include_router(migration.router, prefix="/api/v1")
+app.include_router(candidate.router, prefix="/api/v1")
+app.include_router(document.router, prefix="/api/v1")
+app.include_router(extraction.router, prefix="/api/v1")
+app.include_router(v01_product.router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -71,5 +72,3 @@ async def root():
         "status": "operational",
         "environment": settings.ENVIRONMENT,
     }
-
-

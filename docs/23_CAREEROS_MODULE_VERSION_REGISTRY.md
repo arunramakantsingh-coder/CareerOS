@@ -145,7 +145,7 @@ RETIRED
 Status: VERIFIED according to the current control state supplied by Arun/QA.
 
 ### M02 — Identity & Career Intake
-Status: NOT AUTHORIZED until the locked M02 brief is issued.
+Status: IMPLEMENTING — explicit Product Owner authorization received for the Profile Intelligence v1.0 slice.
 
 Scope:
 - public CareerOS entry
@@ -170,6 +170,46 @@ M02 does NOT include:
 - migration/visa intelligence
 - autonomous application submission
 - production SaaS monetization
+
+### M02-S02 / PROFILE-INTELLIGENCE-1.0 — IMPLEMENTING
+Branch: `feature/m02-profile-intelligence-v1.0`
+Base commit: `16563b4`
+
+Scope:
+- Google OIDC sign-in
+- Gmail external authorization foundation
+- LinkedIn OIDC sign-in and profile sync foundation
+- multi-file / drag-drop / folder / ZIP / camera document intake
+- safe ZIP extraction
+- PDF/DOCX/TXT/image parsing and OCR fallback
+- document hashing, classification and canonical naming
+- persistent development evidence storage
+- extraction into existing canonical CandidateProfile child models
+- provenance and evidence-backed Profile Intelligence UI
+- browser-hostname API resolution for LAN/mobile access
+
+Database migration IDs:
+- Reuses existing M02 migrations 014 and 015; no new migration in this slice.
+
+API:
+- `POST /api/v1/documents/batch-upload`
+- `GET /api/v1/profile/intelligence`
+- `GET /api/v1/auth/oauth/google/start`
+- `POST /api/v1/auth/oauth/google/gmail/authorize-url`
+- `GET /api/v1/auth/oauth/google/callback`
+- `GET /api/v1/auth/oauth/linkedin/start`
+- `GET /api/v1/auth/oauth/linkedin/callback`
+- `POST /api/v1/auth/oauth/linkedin/sync-profile`
+
+UI:
+- `/documents`
+- `/profile/intelligence`
+- login Google/LinkedIn buttons
+- multi-file/folder/camera uploader
+
+Status: IMPLEMENTING
+Verification: PENDING local runtime evidence
+Known limitations: LinkedIn self-serve OIDC does not provide an arbitrary downloadable member CV; deeper profile fields depend on LinkedIn-approved API access. Full conflict-review UI remains a follow-on profile slice.
 
 ## 8. Evidence record template
 

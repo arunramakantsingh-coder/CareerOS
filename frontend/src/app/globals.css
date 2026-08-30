@@ -3,8 +3,60 @@
 @tailwind utilities;
 
 @layer base {
-  :root { --background: 0 0% 98%; --foreground: 222 25% 12%; --card: 0 0% 100%; --card-foreground: 222 25% 12%; --primary: 239 70% 56%; --primary-foreground: 0 0% 100%; --muted: 220 15% 94%; --muted-foreground: 220 10% 42%; --border: 220 14% 88%; --sidebar: 222 28% 97%; --warning: 38 92% 50%; --warning-foreground: 28 80% 24%; }
-  .dark { --background: 222 25% 8%; --foreground: 210 20% 96%; --card: 222 22% 11%; --card-foreground: 210 20% 96%; --primary: 239 70% 65%; --primary-foreground: 0 0% 100%; --muted: 222 16% 17%; --muted-foreground: 220 10% 68%; --border: 222 15% 23%; --sidebar: 222 24% 10%; --warning: 38 90% 58%; --warning-foreground: 38 90% 90%; }
+  :root {
+    --background: 210 25% 98%;
+    --foreground: 222 30% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 11%;
+    --primary: 191 84% 35%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 12% 43%;
+    --border: 214 18% 87%;
+    --sidebar: 210 28% 97%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 28 80% 24%;
+  }
+
+  .dark {
+    --background: 222 24% 8%;
+    --foreground: 210 25% 96%;
+    --card: 222 22% 12%;
+    --card-foreground: 210 25% 96%;
+    --primary: 188 86% 55%;
+    --primary-foreground: 220 30% 8%;
+    --muted: 222 17% 18%;
+    --muted-foreground: 218 12% 68%;
+    --border: 222 16% 25%;
+    --sidebar: 222 25% 10%;
+    --warning: 38 90% 58%;
+    --warning-foreground: 38 90% 90%;
+  }
+
+  .techno {
+    --background: 194 50% 5%;
+    --foreground: 183 40% 94%;
+    --card: 193 42% 8%;
+    --card-foreground: 183 40% 94%;
+    --primary: 184 100% 50%;
+    --primary-foreground: 190 55% 5%;
+    --muted: 192 35% 12%;
+    --muted-foreground: 185 18% 64%;
+    --border: 185 45% 19%;
+    --sidebar: 195 46% 6%;
+    --warning: 44 100% 58%;
+    --warning-foreground: 44 100% 92%;
+  }
+
   * { @apply border-border; }
+  html { min-width: 320px; }
   body { @apply bg-background text-foreground antialiased; }
+
+  .techno body {
+    background-image: linear-gradient(rgba(0, 240, 255, .025) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, .025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .techno .bg-primary { box-shadow: 0 0 22px rgba(0, 220, 240, .16); }
+  .techno .rounded-2xl.border { box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
 }

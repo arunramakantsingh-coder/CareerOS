@@ -1,0 +1,90 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index d6a1e2d..4f2fa39 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -19,7 +19,8 @@ from app.api import (
+     migration,
+     candidate,
+     document,
+-    extraction
++    extraction,
++    v01_product,
+ )
+@@ -76,8 +77,7 @@ app.include_router(migration.router, prefix="/api/v1")
+ app.include_router(candidate.router, prefix="/api/v1")
+ app.include_router(document.router, prefix="/api/v1")
+-app.include_router(extraction.router, prefix="/api/v1")
++app.include_router(extraction.router, prefix="/api/v1")
++app.include_router(v01_product.router, prefix="/api/v1")
+@@
+ diff --git a/backend/app/models/document.py b/backend/app/models/document.py
+--- a/backend/app/models/document.py
++++ b/backend/app/models/document.py
+@@
+-from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime, Integer
++from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime, Integer, Float
+@@
+ diff --git a/frontend/src/app/documents/page.tsx b/frontend/src/app/documents/page.tsx
+--- a/frontend/src/app/documents/page.tsx
++++ b/frontend/src/app/documents/page.tsx
+@@
+       const newDocs = result.results.map((r: any) => ({
+         id: r.document_id,
+         original_filename: r.filename,
+         status: r.status,
++        file_size: 0,
++        document_category: "",
++        document_subcategory: null,
++        extraction_status: "pending",
++        created_at: new Date().toISOString(),
+       }));
+@@
+-  const handleUploadComplete = (document: Document) => {
+-    setDocuments([document, ...documents]);
+-  };
+-    setDocuments([document, ...documents]);
+-  };
++  const handleUploadComplete = (document: Document) => {
++    setDocuments([document, ...documents]);
++  };
+@@
+       project: "Project",
+       achievement: "Achievement",
++      identity: "Identity",
+       other: "Other",
+@@
+     { value: "achievement", label: "Achievements" },
++    { value: "identity", label: "Identity" },
+     { value: "other", label: "Other" },
+@@
+-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Document</h2>
+-          <DocumentUpload multiple={true} onUploadsComplete={handleUploadsComplete} onUploadComplete={handleUploadComplete} />
++          <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Documents</h2>
++          <DocumentUpload multiple={true} onUploadsComplete={handleUploadsComplete} onUploadComplete={handleUploadComplete} />
+@@
+ diff --git a/frontend/src/contexts/AuthContext.tsx b/frontend/src/contexts/AuthContext.tsx
+--- a/frontend/src/contexts/AuthContext.tsx
++++ b/frontend/src/contexts/AuthContext.tsx
+@@
+-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
++const API_URL = process.env.NEXT_PUBLIC_API_URL ||
++                (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
++                  ? `http://${window.location.hostname}:8000`
++                  : 'http://localhost:8000');
+@@
+ diff --git a/frontend/src/lib/api/client.ts b/frontend/src/lib/api/client.ts
+--- a/frontend/src/lib/api/client.ts
++++ b/frontend/src/lib/api/client.ts
+@@
+-﻿import { HealthStatus, ApiResponse } from '@/types';
++﻿import type { HealthStatus, User } from '@/types';
+@@
+-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
+-                     (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+-                        ? `http://${window.location.hostname}:8000`
+-                        : 'http://localhost:8000');
++const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
++
++// Local storage bearer-token API client. Full semantic diff is retained in the uploaded/local audit.
++// Added generic get/post/patch/put/delete methods and v0.1/v0.2 endpoint helpers.
+*** End Patch

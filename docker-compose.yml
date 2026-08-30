@@ -1,4 +1,4 @@
-﻿services:
+services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -33,7 +33,9 @@
   frontend:
     build: ./frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Leave empty so the browser client resolves the API from the hostname it used to open CareerOS.
+      # This is required when the UI is opened from a phone on the LAN.
+      NEXT_PUBLIC_API_URL: ""
     ports:
       - "3000:3000"
     volumes:
@@ -45,6 +47,3 @@
 
 volumes:
   postgres_data:
-
-
-

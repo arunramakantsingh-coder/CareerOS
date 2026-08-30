@@ -90,7 +90,7 @@ export function CareerOSShell({ children }: { children: ReactNode }) {
           </div>
           <Link href="/settings" className="rounded-xl border px-3 py-2 text-xs font-semibold hover:bg-muted">Settings</Link>
         </div>
-        <nav className="mt-2 hidden gap-1 overflow-x-auto pb-0.5 lg:flex">
+        <nav className="career-top-nav mt-2 hidden gap-1 overflow-x-auto pb-0.5 lg:flex">
           {groups.flatMap((group) => group.items.slice(0, group.title === 'Opportunity' ? 6 : group.items.length)).map(([label, href]) => {
             const active = pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
             return <Link key={href} href={href} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{label}</Link>;

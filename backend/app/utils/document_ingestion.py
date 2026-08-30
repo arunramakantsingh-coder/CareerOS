@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import subprocess
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -38,6 +39,12 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
     meta: Dict[str, Any] = {"method": "none", "ocr_required": False, "page_count": None}
     if suffix == ".txt" or (mime_type or "").startswith("text/"):
         return content.decode("utf-8", errors="replace"), {**meta, "method": "text"}
+    if suffix == ".doc":
+        try:
+            result = subprocess.run(["antiword", "-"], input=content, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=True)
+            return result.stdout.decode("utf-8", errors="replace"), {**meta, "method": "antiword"}
+        except Exception as exc:
+            return "", {**meta, "method": "antiword_error", "error": str(exc)}
     if suffix == ".docx":
         try:
             from docx import Document as DocxDocument
@@ -114,9 +121,8 @@ def canonical_filename(owner: str | None, classification: Dict[str, Any], issuer
         pieces.append(issuer_part)
     if stem and stem.lower() not in {"document", "scan", "img", "image"}:
         pieces.append(stem)
-    filename = " - ".join(p for p in pieces if p)
     suffix = Path(original).suffix.lower() or ".bin"
-    return safe_filename(filename)[:240] + suffix
+    return safe_filename(" - ".join(p for p in pieces if p))[:240] + suffix
 
 
 def iter_zip_entries(content: bytes) -> Iterable[Tuple[str, bytes]]:

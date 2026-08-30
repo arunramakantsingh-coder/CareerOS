@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -32,7 +32,6 @@ def frontend_origin(request: Request) -> str:
     if origin:
         if origin in configured:
             return origin
-        # Local/LAN development: allow the same host on the frontend port.
         try:
             from urllib.parse import urlparse
             parsed = urlparse(origin)
@@ -49,13 +48,7 @@ def callback_uri(request: Request, provider: str) -> str:
 
 def state_token(provider: str, action: str, request: Request, user_id: str | None = None) -> str:
     return create_access_token(
-        {
-            "purpose": "oauth_state",
-            "provider": provider,
-            "action": action,
-            "user_id": user_id,
-            "frontend": frontend_origin(request),
-        },
+        {"purpose": "oauth_state", "provider": provider, "action": action, "user_id": user_id, "frontend": frontend_origin(request)},
         expires_delta=timedelta(minutes=10),
     )
 
@@ -82,26 +75,13 @@ window.location.replace('{safe_frontend}/');
     return HTMLResponse(html)
 
 
-async def exchange_code(provider: str, code: str, request: Request, redirect_uri: str) -> dict:
+async def exchange_code(provider: str, code: str, redirect_uri: str) -> dict:
     if provider == "google":
-        data = {
-            "code": code,
-            "client_id": settings.GOOGLE_CLIENT_ID,
-            "client_secret": settings.GOOGLE_CLIENT_SECRET,
-            "redirect_uri": redirect_uri,
-            "grant_type": "authorization_code",
-        }
+        data = {"code": code, "client_id": settings.GOOGLE_CLIENT_ID, "client_secret": settings.GOOGLE_CLIENT_SECRET, "redirect_uri": redirect_uri, "grant_type": "authorization_code"}
         token_url = GOOGLE_TOKEN
     else:
-        data = {
-            "code": code,
-            "client_id": settings.LINKEDIN_CLIENT_ID,
-            "client_secret": settings.LINKEDIN_CLIENT_SECRET,
-            "redirect_uri": redirect_uri,
-            "grant_type": "authorization_code",
-        }
+        data = {"code": code, "client_id": settings.LINKEDIN_CLIENT_ID, "client_secret": settings.LINKEDIN_CLIENT_SECRET, "redirect_uri": redirect_uri, "grant_type": "authorization_code"}
         token_url = LINKEDIN_TOKEN
-
     async with httpx.AsyncClient(timeout=15) as client:
         response = await client.post(token_url, data=data, headers={"Accept": "application/json"})
         response.raise_for_status()
@@ -116,14 +96,7 @@ async def fetch_userinfo(provider: str, access_token: str) -> dict:
         return response.json()
 
 
-def upsert_identity(
-    db: Session,
-    user: User,
-    provider: str,
-    info: dict,
-    tokens: dict,
-    scopes: list[str],
-) -> ExternalIdentity:
+def upsert_identity(db: Session, user: User, provider: str, info: dict, tokens: dict, scopes: list[str]) -> ExternalIdentity:
     provider_user_id = str(info.get("sub") or info.get("id") or "")
     if not provider_user_id:
         raise HTTPException(status_code=400, detail=f"{provider} did not return a member identifier")
@@ -141,7 +114,7 @@ def upsert_identity(
     identity.refresh_token = tokens.get("refresh_token") or identity.refresh_token
     identity.provider_data = info
     identity.scopes = scopes
-    identity.last_used = __import__("datetime").datetime.utcnow()
+    identity.last_used = datetime.utcnow()
     db.commit()
     db.refresh(identity)
     return identity
@@ -161,15 +134,10 @@ def enrich_candidate_from_identity(db: Session, user: User, info: dict) -> None:
         )
         db.add(profile)
         db.flush()
-
-    name = info.get("name")
-    email = info.get("email")
-    if name and not profile.full_name:
-        profile.full_name = name
-    if email and not profile.primary_email:
-        profile.primary_email = email
-    if info.get("picture") and not profile.source_metadata if False else False:
-        pass
+    if info.get("name") and not profile.full_name:
+        profile.full_name = info["name"]
+    if info.get("email") and not profile.primary_email:
+        profile.primary_email = info["email"]
     db.commit()
 
 
@@ -179,16 +147,7 @@ async def google_start(request: Request):
         return oauth_error(frontend_origin(request), "google", "Google OAuth is not configured")
     redirect_uri = callback_uri(request, "google")
     scopes = ["openid", "profile", "email"]
-    params = {
-        "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(scopes),
-        "access_type": "offline",
-        "include_granted_scopes": "true",
-        "prompt": "select_account",
-        "state": state_token("google", "login", request),
-    }
+    params = {"client_id": settings.GOOGLE_CLIENT_ID, "redirect_uri": redirect_uri, "response_type": "code", "scope": " ".join(scopes), "access_type": "offline", "include_granted_scopes": "true", "prompt": "select_account", "state": state_token("google", "login", request)}
     return RedirectResponse(f"{GOOGLE_AUTH}?{urlencode(params)}")
 
 
@@ -198,16 +157,7 @@ async def google_gmail_start(request: Request, current_user: User = Depends(get_
         return oauth_error(frontend_origin(request), "google", "Google OAuth is not configured")
     redirect_uri = callback_uri(request, "google")
     scopes = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"]
-    params = {
-        "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(scopes),
-        "access_type": "offline",
-        "include_granted_scopes": "true",
-        "prompt": "consent",
-        "state": state_token("google", "gmail", request, str(current_user.id)),
-    }
+    params = {"client_id": settings.GOOGLE_CLIENT_ID, "redirect_uri": redirect_uri, "response_type": "code", "scope": " ".join(scopes), "access_type": "offline", "include_granted_scopes": "true", "prompt": "consent", "state": state_token("google", "gmail", request, str(current_user.id))}
     return RedirectResponse(f"{GOOGLE_AUTH}?{urlencode(params)}")
 
 
@@ -217,13 +167,7 @@ async def linkedin_start(request: Request):
         return oauth_error(frontend_origin(request), "linkedin", "LinkedIn OAuth is not configured")
     redirect_uri = callback_uri(request, "linkedin")
     scopes = ["openid", "profile", "email"]
-    params = {
-        "client_id": settings.LINKEDIN_CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(scopes),
-        "state": state_token("linkedin", "login", request),
-    }
+    params = {"client_id": settings.LINKEDIN_CLIENT_ID, "redirect_uri": redirect_uri, "response_type": "code", "scope": " ".join(scopes), "state": state_token("linkedin", "login", request)}
     return RedirectResponse(f"{LINKEDIN_AUTH}?{urlencode(params)}")
 
 
@@ -237,17 +181,14 @@ async def google_callback(request: Request, code: str | None = None, state: str 
         return oauth_error(frontend, "google", error)
     if not code:
         return oauth_error(frontend, "google", "Missing authorization code")
-
     try:
-        tokens = await exchange_code("google", code, request, callback_uri(request, "google"))
+        tokens = await exchange_code("google", code, callback_uri(request, "google"))
         info = await fetch_userinfo("google", tokens["access_token"])
     except Exception as exc:
         return oauth_error(frontend, "google", f"Google authorization failed: {exc}")
 
-    action = payload.get("action")
-    if action == "gmail":
-        user_id = payload.get("user_id")
-        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    if payload.get("action") == "gmail":
+        user = db.query(User).filter(User.id == payload.get("user_id"), User.is_active == True).first()
         if not user:
             return oauth_error(frontend, "google", "CareerOS session expired; please sign in again")
         upsert_identity(db, user, "google", info, tokens, ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"])
@@ -266,8 +207,7 @@ async def google_callback(request: Request, code: str | None = None, state: str 
         db.flush()
     upsert_identity(db, user, "google", info, tokens, ["openid", "profile", "email"])
     enrich_candidate_from_identity(db, user, info)
-    access_token = create_access_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)})
-    return oauth_complete_html(access_token, frontend, "Google")
+    return oauth_complete_html(create_access_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)}), frontend, "Google")
 
 
 @router.get("/linkedin/callback")
@@ -280,16 +220,15 @@ async def linkedin_callback(request: Request, code: str | None = None, state: st
         return oauth_error(frontend, "linkedin", error)
     if not code:
         return oauth_error(frontend, "linkedin", "Missing authorization code")
-
     try:
-        tokens = await exchange_code("linkedin", code, request, callback_uri(request, "linkedin"))
+        tokens = await exchange_code("linkedin", code, callback_uri(request, "linkedin"))
         info = await fetch_userinfo("linkedin", tokens["access_token"])
     except Exception as exc:
         return oauth_error(frontend, "linkedin", f"LinkedIn authorization failed: {exc}")
 
     email = info.get("email")
     if not email:
-        return oauth_error(frontend, "linkedin", "LinkedIn did not return an email address; use email/password or Google to create the account first")
+        return oauth_error(frontend, "linkedin", "LinkedIn did not return an email address")
     user = db.query(User).filter(User.email == email).first()
     if not user:
         tenant = Tenant(name="default", plan="free", status="active")
@@ -300,8 +239,7 @@ async def linkedin_callback(request: Request, code: str | None = None, state: st
         db.flush()
     upsert_identity(db, user, "linkedin", info, tokens, ["openid", "profile", "email"])
     enrich_candidate_from_identity(db, user, info)
-    access_token = create_access_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)})
-    return oauth_complete_html(access_token, frontend, "LinkedIn")
+    return oauth_complete_html(create_access_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)}), frontend, "LinkedIn")
 
 
 @router.post("/linkedin/sync-profile")
@@ -318,7 +256,7 @@ async def linkedin_sync_profile(current_user: User = Depends(get_current_user), 
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"LinkedIn profile sync failed: {exc}")
     identity.provider_data = info
-    identity.last_used = __import__("datetime").datetime.utcnow()
+    identity.last_used = datetime.utcnow()
     enrich_candidate_from_identity(db, current_user, info)
     db.commit()
     return {"provider": "linkedin", "synced": True, "profile": info}

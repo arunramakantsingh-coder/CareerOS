@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveApiBaseUrl } from "@/lib/api/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -23,6 +24,10 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const startOAuth = (provider: "google" | "linkedin") => {
+    window.location.href = `${resolveApiBaseUrl()}/api/v1/auth/oauth/${provider}/start`;
   };
 
   return (
@@ -107,20 +112,16 @@ export default function LoginPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <button
+            type="button"
             className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            onClick={() => {
-              // Google OAuth placeholder
-              alert("Google OAuth integration coming soon");
-            }}
+            onClick={() => startOAuth("google")}
           >
             Google
           </button>
           <button
+            type="button"
             className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-            onClick={() => {
-              // LinkedIn OAuth placeholder
-              alert("LinkedIn OAuth integration coming soon");
-            }}
+            onClick={() => startOAuth("linkedin")}
           >
             LinkedIn
           </button>

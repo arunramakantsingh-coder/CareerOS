@@ -1,8 +1,24 @@
 ﻿import type { HealthStatus, User } from '@/types';
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-).replace(/\/$/, '');
+function resolveApiBaseUrl(): string {
+  const configured = (
+    process.env.NEXT_PUBLIC_API_URL || ''
+  ).replace(/\/$/, '');
+
+  if (typeof window === 'undefined') {
+    return configured || 'http://localhost:8000';
+  }
+
+  if (
+    !configured ||
+    configured === 'http://localhost:8000' ||
+    configured === 'http://127.0.0.1:8000'
+  ) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+
+  return configured;
+}
 
 class ApiClient {
   private token(): string | null {
@@ -50,7 +66,7 @@ class ApiClient {
     }
 
     const response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
+      `${resolveApiBaseUrl()}${endpoint}`,
       {
         ...options,
         headers,
@@ -355,3 +371,4 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+export { resolveApiBaseUrl };

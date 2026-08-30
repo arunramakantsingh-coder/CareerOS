@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -42,6 +42,17 @@ class Document(Base, TimestampMixin):
     # Provenance
     source = Column(String(50), nullable=True)  # upload, import, sync, etc.
     source_metadata = Column(JSON, nullable=True)
+
+    # M02 vault enhancement fields already present in migration 015.
+    content_hash = Column(String(64), nullable=True, index=True)
+    issuer = Column(String(255), nullable=True)
+    issue_date = Column(DateTime, nullable=True)
+    expiry_date = Column(DateTime, nullable=True)
+    document_number = Column(String(255), nullable=True)
+    batch_id = Column(UUID(as_uuid=True), nullable=True)
+    is_zip_content = Column(Boolean, default=False)
+    parent_zip_id = Column(UUID(as_uuid=True), nullable=True)
+    classification_confidence = Column(Float, nullable=True)
     
     # Relationships
     candidate = relationship("CandidateProfile", back_populates="documents")

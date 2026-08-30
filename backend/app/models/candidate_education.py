@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime, Float, Float, Float
+﻿from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -24,11 +24,12 @@ class CandidateEducation(Base, TimestampMixin):
     
     grade = Column(String(50), nullable=True)
     
+    # Source
     source_type = Column(String(50), nullable=True)
     source_id = Column(UUID(as_uuid=True), nullable=True)
     
+    # Confidence
     confidence = Column(Float, nullable=True)
     
+    # Relationships
     candidate = relationship("CandidateProfile", back_populates="educations")
-
-

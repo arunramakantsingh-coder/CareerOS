@@ -1,56 +1,357 @@
-﻿import { HealthStatus, ApiResponse } from '@/types';
+﻿import type { HealthStatus, User } from '@/types';
 
-// Use environment variable with fallback
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-                     (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-                        ? `http://${window.location.hostname}:8000` 
-                        : 'http://localhost:8000');
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+).replace(/\/$/, '');
 
 class ApiClient {
-  private baseUrl: string;
+  private token(): string | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+    // Current authentication storage
+    const accessToken = localStorage.getItem('access_token');
+
+    // Backward compatibility with the older client
+    const legacyToken = localStorage.getItem('careeros_token');
+
+    return accessToken || legacyToken;
+  }
+
+  hasToken(): boolean {
+    return !!this.token();
+  }
+
+  clearToken(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('careeros_token');
+    localStorage.removeItem('user');
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const headers = new Headers(options.headers);
 
-    try {
-      const response = await fetch(url, {
+    if (!headers.has('Content-Type') && options.body) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const token = this.token();
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}${endpoint}`,
+      {
         ...options,
         headers,
-      });
+        cache: 'no-store',
+      }
+    );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `API Error: ${response.statusText}`
-        );
+    const text = await response.text();
+
+    let data: any = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
+    }
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
       }
 
-      return await response.json();
-    } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
-      throw error;
+      throw new Error(
+        data?.detail ||
+        data?.message ||
+        `API ${response.status}`
+      );
     }
+
+    return data as T;
   }
 
-  // Health endpoints
-  async healthCheck(): Promise<HealthStatus> {
-    return this.request<HealthStatus>('/api/v1/health');
+  // ------------------------------------------------------------
+  // Generic HTTP methods
+  // ------------------------------------------------------------
+
+  get<T>(endpoint: string) {
+    return this.request<T>(endpoint);
   }
 
-  async ping(): Promise<{ timestamp: string; message: string }> {
-    return this.request<{ timestamp: string; message: string }>('/api/v1/ping');
+  post<T>(endpoint: string, body: any) {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    );
+  }
+
+  patch<T>(endpoint: string, body: any) {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }
+    );
+  }
+
+  put<T>(endpoint: string, body: any) {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }
+    );
+  }
+
+  delete<T>(endpoint: string) {
+    return this.request<T>(
+      endpoint,
+      {
+        method: 'DELETE',
+      }
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Authentication
+  // ------------------------------------------------------------
+
+  healthCheck() {
+    return this.get<HealthStatus>(
+      '/api/v1/health'
+    );
+  }
+
+  ping() {
+    return this.get<{
+      timestamp: string;
+      message: string;
+    }>('/api/v1/ping');
+  }
+
+  me() {
+    return this.get<User>(
+      '/api/v1/auth/me'
+    );
+  }
+
+  register(body: any) {
+    return this.post<any>(
+      '/api/v1/auth/register',
+      body
+    );
+  }
+
+  login(body: any) {
+    return this.post<any>(
+      '/api/v1/auth/login',
+      body
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Career Vault
+  // ------------------------------------------------------------
+
+  profile() {
+    return this.get<any>(
+      '/api/v1/career/profile'
+    );
+  }
+
+  saveProfile(body: any) {
+    return this.post<any>(
+      '/api/v1/career/profile',
+      body
+    );
+  }
+
+  evidence() {
+    return this.get<any[]>(
+      '/api/v1/career/evidence'
+    );
+  }
+
+  addEvidence(body: any) {
+    return this.post<any>(
+      '/api/v1/career/evidence',
+      body
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Personas
+  // ------------------------------------------------------------
+
+  personas(userId: string) {
+    return this.get<any[]>(
+      `/api/v1/personas/?user_id=${encodeURIComponent(userId)}`
+    );
+  }
+
+  createPersona(body: any) {
+    return this.post<any>(
+      '/api/v1/personas/',
+      body
+    );
+  }
+
+  updatePersona(id: string, body: any) {
+    return this.put<any>(
+      `/api/v1/personas/${id}`,
+      body
+    );
+  }
+
+  activatePersona(id: string) {
+    return this.post<any>(
+      `/api/v1/personas/${id}/activate`,
+      {}
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Jobs / Job Intelligence
+  // ------------------------------------------------------------
+
+  jobs(userId: string) {
+    return this.get<any[]>(
+      `/api/v1/jobs/?user_id=${encodeURIComponent(userId)}`
+    );
+  }
+
+  analyzeJob(body: any) {
+    return this.post<any>(
+      '/api/v1/jobs/analyze',
+      body
+    );
+  }
+
+  jobDna(id: string) {
+    return this.get<any>(
+      `/api/v1/jobs/${id}/dna`
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Applications
+  // ------------------------------------------------------------
+
+  applications() {
+    return this.get<any[]>(
+      '/api/v1/applications'
+    );
+  }
+
+  createApplication(body: any) {
+    return this.post<any>(
+      '/api/v1/applications',
+      body
+    );
+  }
+
+  updateApplicationStatus(
+    id: string,
+    status: string
+  ) {
+    return this.patch<any>(
+      `/api/v1/applications/${id}/status?status_value=${encodeURIComponent(status)}`,
+      {}
+    );
+  }
+
+  applicationPackage(id: string) {
+    return this.post<any>(
+      `/api/v1/applications/${id}/package`,
+      {}
+    );
+  }
+
+  truthCheck(id: string) {
+    return this.post<any>(
+      `/api/v1/truth/${id}`,
+      {}
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Company Intelligence
+  // ------------------------------------------------------------
+
+  companies() {
+    return this.get<any[]>(
+      '/api/v1/companies/intelligence'
+    );
+  }
+
+  saveCompany(body: any) {
+    return this.post<any>(
+      '/api/v1/companies/intelligence',
+      body
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Interviews
+  // ------------------------------------------------------------
+
+  interviews() {
+    return this.get<any[]>(
+      '/api/v1/interviews'
+    );
+  }
+
+  createInterview(body: any) {
+    return this.post<any>(
+      '/api/v1/interviews',
+      body
+    );
+  }
+
+  startLive(body: any) {
+    return this.post<any>(
+      '/api/v1/live-interview/sessions',
+      body
+    );
+  }
+
+  assistLive(
+    id: string,
+    question: string
+  ) {
+    return this.post<any>(
+      `/api/v1/live-interview/sessions/${id}/assist`,
+      { question }
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Analytics
+  // ------------------------------------------------------------
+
+  analytics() {
+    return this.get<any>(
+      '/api/v1/analytics/summary'
+    );
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL);
+export const apiClient = new ApiClient();

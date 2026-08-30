@@ -6,9 +6,6 @@ import uuid
 import os
 import base64
 import json
-import zipfile
-import hashlib
-import io
 from datetime import datetime
 
 from app.core.database import get_db
@@ -16,215 +13,14 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
+from app.models.extraction_result import ExtractionResult
 from app.schemas.candidate import DocumentResponse, DocumentUploadRequest
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-# Supported file types
-SUPPORTED_MIME_TYPES = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "image/jpeg",
-    "image/png",
-    "image/tiff",
-    "text/plain"
-]
-
-SUPPORTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".tiff", ".txt"]
-
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-MAX_ZIP_SIZE = 50 * 1024 * 1024   # 50 MB
-MAX_ZIP_FILES = 50
-
 
 # ============================================
-# HELPER FUNCTIONS
-# ============================================
-
-def compute_hash(content: bytes) -> str:
-    """Compute SHA-256 hash of content."""
-    return hashlib.sha256(content).hexdigest()
-
-
-def validate_file(content: bytes, filename: str) -> tuple[bool, str]:
-    """Validate file content and type."""
-    # Check size
-    if len(content) > MAX_FILE_SIZE:
-        return False, f"File exceeds {MAX_FILE_SIZE // 1024 // 1024} MB limit"
-    
-    # Check extension
-    ext = os.path.splitext(filename)[1].lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        return False, f"Unsupported file type: {ext}"
-    
-    return True, ""
-
-
-def get_mime_type(filename: str) -> str:
-    """Get MIME type from filename."""
-    ext = os.path.splitext(filename)[1].lower()
-    mime_map = {
-        ".pdf": "application/pdf",
-        ".doc": "application/msword",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".tiff": "image/tiff",
-        ".txt": "text/plain"
-    }
-    return mime_map.get(ext, "application/octet-stream")
-
-
-def process_single_file(
-    content: bytes,
-    filename: str,
-    candidate_id: uuid.UUID,
-    db: Session,
-    batch_id: Optional[uuid.UUID] = None,
-    parent_zip_id: Optional[uuid.UUID] = None
-) -> Document:
-    """Process a single file and create document record."""
-    
-    # Validate
-    valid, error = validate_file(content, filename)
-    if not valid:
-        raise HTTPException(status_code=400, detail=error)
-    
-    # Compute hash
-    content_hash = compute_hash(content)
-    
-    # Check for duplicate
-    existing = db.query(Document).filter(
-        Document.candidate_id == candidate_id,
-        Document.content_hash == content_hash
-    ).first()
-    
-    if existing:
-        # Return existing document (soft duplicate)
-        return existing
-    
-    # Create storage path
-    file_ext = os.path.splitext(filename)[1]
-    storage_filename = f"{uuid.uuid4()}{file_ext}"
-    storage_path = f"documents/{candidate_id}/{storage_filename}"
-    storage_url = f"/api/v1/documents/download/{candidate_id}/{storage_filename}"
-    
-    # Create document record
-    document = Document(
-        candidate_id=candidate_id,
-        original_filename=filename,
-        filename=storage_filename,
-        file_size=len(content),
-        file_type=file_ext[1:] if file_ext else None,
-        mime_type=get_mime_type(filename),
-        content_hash=content_hash,
-        storage_path=storage_path,
-        storage_url=storage_url,
-        status="uploaded",
-        extraction_status="pending",
-        batch_id=batch_id,
-        is_zip_content=parent_zip_id is not None,
-        parent_zip_id=parent_zip_id,
-        source="upload"
-    )
-    
-    db.add(document)
-    db.commit()
-    db.refresh(document)
-    
-    # In production, store the file in cloud storage
-    # For now, just return the document record
-    
-    return document
-
-
-def process_zip(
-    content: bytes,
-    filename: str,
-    candidate_id: uuid.UUID,
-    db: Session,
-    batch_id: uuid.UUID
-) -> List[Document]:
-    """Process a ZIP file and extract its contents."""
-    
-    documents = []
-    
-    try:
-        with zipfile.ZipFile(io.BytesIO(content)) as zip_file:
-            # Validate ZIP
-            file_list = zip_file.namelist()
-            
-            # Check file count
-            if len(file_list) > MAX_ZIP_FILES:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"ZIP contains too many files ({len(file_list)} > {MAX_ZIP_FILES})"
-                )
-            
-            # Check total size
-            total_size = sum(info.file_size for info in zip_file.infolist() if not info.is_dir())
-            if total_size > MAX_ZIP_SIZE:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"ZIP total size exceeds {MAX_ZIP_SIZE // 1024 // 1024} MB limit"
-                )
-            
-            # Create document for the ZIP itself
-            zip_doc = Document(
-                candidate_id=candidate_id,
-                original_filename=filename,
-                filename=filename,
-                file_size=len(content),
-                file_type="zip",
-                mime_type="application/zip",
-                content_hash=compute_hash(content),
-                storage_path=f"documents/{candidate_id}/{filename}",
-                storage_url=f"/api/v1/documents/download/{candidate_id}/{filename}",
-                status="processed",
-                extraction_status="complete",
-                batch_id=batch_id,
-                source="upload"
-            )
-            db.add(zip_doc)
-            db.commit()
-            db.refresh(zip_doc)
-            
-            # Process each file in ZIP
-            for file_info in zip_file.infolist():
-                if file_info.is_dir():
-                    continue
-                
-                # Security: prevent path traversal
-                if file_info.filename.startswith(("..", "/", "\\")):
-                    continue
-                
-                try:
-                    file_content = zip_file.read(file_info.filename)
-                    doc = process_single_file(
-                        file_content,
-                        os.path.basename(file_info.filename),
-                        candidate_id,
-                        db,
-                        batch_id,
-                        zip_doc.id
-                    )
-                    documents.append(doc)
-                except Exception as e:
-                    # Log error but continue processing other files
-                    print(f"Error processing {file_info.filename}: {e}")
-            
-            return documents
-            
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error processing ZIP: {str(e)}")
-
-
-# ============================================
-# API ENDPOINTS
+# DOCUMENT UPLOAD
 # ============================================
 
 @router.post("/upload", response_model=DocumentResponse)
@@ -256,38 +52,48 @@ async def upload_document(
     
     # Read file content
     content = await file.read()
+    file_size = len(content)
     
-    # Handle ZIP files
-    batch_id = uuid.uuid4()
-    if file.filename.lower().endswith(".zip"):
-        documents = process_zip(content, file.filename, profile.id, db, batch_id)
-        if documents:
-            return documents[0]  # Return first document
-        else:
-            raise HTTPException(status_code=400, detail="No valid files found in ZIP")
+    # Create storage path (in a real implementation, this would be cloud storage)
+    storage_path = f"documents/{profile.id}/{file.filename}"
+    storage_url = f"/api/v1/documents/download/{profile.id}/{file.filename}"
     
-    # Process single file
-    doc = process_single_file(content, file.filename, profile.id, db, batch_id)
-    
-    # Set category if provided
-    if document_category:
-        doc.document_category = document_category
-    if document_subcategory:
-        doc.document_subcategory = document_subcategory
-    
+    # Create document record
+    document = Document(
+        candidate_id=profile.id,
+        filename=file.filename,
+        original_filename=file.filename,
+        file_size=file_size,
+        file_type=file.filename.split(".")[-1] if "." in file.filename else None,
+        mime_type=file.content_type,
+        storage_path=storage_path,
+        storage_url=storage_url,
+        document_category=document_category or "cv",
+        document_subcategory=document_subcategory,
+        status="uploaded",
+        extraction_status="pending"
+    )
+    db.add(document)
     db.commit()
-    db.refresh(doc)
+    db.refresh(document)
     
-    return doc
+    # Trigger extraction (asynchronously in production)
+    # For now, mark as processed
+    document.status = "processed"
+    document.extraction_status = "complete"
+    db.commit()
+    db.refresh(document)
+    
+    return document
 
 
-@router.post("/upload-multiple")
-async def upload_multiple_documents(
-    files: List[UploadFile] = File(...),
+@router.post("/upload-base64", response_model=DocumentResponse)
+def upload_document_base64(
+    request: DocumentUploadRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload multiple files to the Professional Document Vault."""
+    """Upload a document using base64 encoding."""
     
     # Get or create profile
     profile = db.query(CandidateProfile).filter(
@@ -306,39 +112,161 @@ async def upload_multiple_documents(
         db.commit()
         db.refresh(profile)
     
-    batch_id = uuid.uuid4()
-    results = []
-    errors = []
+    # Decode base64 content
+    try:
+        content = base64.b64decode(request.content)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid base64 content"
+        )
     
-    for file in files:
-        try:
-            content = await file.read()
-            
-            # Check if it's a ZIP
-            if file.filename.lower().endswith(".zip"):
-                docs = process_zip(content, file.filename, profile.id, db, batch_id)
-                for doc in docs:
-                    results.append({
-                        "filename": doc.original_filename,
-                        "document_id": str(doc.id),
-                        "status": "uploaded"
-                    })
-            else:
-                doc = process_single_file(content, file.filename, profile.id, db, batch_id)
-                results.append({
-                    "filename": doc.original_filename,
-                    "document_id": str(doc.id),
-                    "status": "uploaded"
-                })
-        except Exception as e:
-            errors.append({
-                "filename": file.filename,
-                "error": str(e)
-            })
+    file_size = len(content)
+    storage_path = f"documents/{profile.id}/{request.filename}"
+    storage_url = f"/api/v1/documents/download/{profile.id}/{request.filename}"
     
+    # Create document record
+    document = Document(
+        candidate_id=profile.id,
+        filename=request.filename,
+        original_filename=request.filename,
+        file_size=file_size,
+        file_type=request.filename.split(".")[-1] if "." in request.filename else None,
+        storage_path=storage_path,
+        storage_url=storage_url,
+        document_category=request.document_category or "cv",
+        document_subcategory=request.document_subcategory,
+        status="processed",
+        extraction_status="complete"
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    
+    return document
+
+
+# ============================================
+# DOCUMENT RETRIEVAL
+# ============================================
+
+@router.get("/", response_model=List[DocumentResponse])
+def get_documents(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all documents for the current user."""
+    profile = db.query(CandidateProfile).filter(
+        CandidateProfile.user_id == current_user.id,
+        CandidateProfile.is_active == True
+    ).first()
+    
+    if not profile:
+        return []
+    
+    documents = db.query(Document).filter(
+        Document.candidate_id == profile.id
+    ).order_by(Document.created_at.desc()).all()
+    
+    return documents
+
+
+@router.get("/{document_id}", response_model=DocumentResponse)
+def get_document(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific document."""
+    document = db.query(Document).filter(
+        Document.id == document_id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Verify ownership
+    profile = db.query(CandidateProfile).filter(
+        CandidateProfile.id == document.candidate_id,
+        CandidateProfile.user_id == current_user.id
+    ).first()
+    
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized"
+        )
+    
+    return document
+
+
+@router.delete("/{document_id}")
+def delete_document(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a document."""
+    document = db.query(Document).filter(
+        Document.id == document_id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Verify ownership
+    profile = db.query(CandidateProfile).filter(
+        CandidateProfile.id == document.candidate_id,
+        CandidateProfile.user_id == current_user.id
+    ).first()
+    
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized"
+        )
+    
+    # In production, delete the file from storage
+    db.delete(document)
+    db.commit()
+    
+    return {"message": "Document deleted"}
+
+
+# ============================================
+# DOCUMENT CATEGORIES
+# ============================================
+
+@router.get("/categories")
+def get_document_categories():
+    """Get available document categories."""
     return {
-        "results": results,
-        "errors": errors,
-        "total": len(results) + len(errors),
-        "successful": len(results)
+        "categories": [
+            {"value": "cv", "label": "CV / Resume"},
+            {"value": "employment", "label": "Employment Evidence"},
+            {"value": "certification", "label": "Certification"},
+            {"value": "education", "label": "Education"},
+            {"value": "project", "label": "Project"},
+            {"value": "achievement", "label": "Achievement"},
+            {"value": "other", "label": "Other"}
+        ],
+        "subcategories": {
+            "employment": [
+                {"value": "offer_letter", "label": "Offer Letter"},
+                {"value": "experience_letter", "label": "Experience Letter"},
+                {"value": "relieving_letter", "label": "Relieving Letter"},
+                {"value": "payslip", "label": "Payslip"}
+            ],
+            "education": [
+                {"value": "degree", "label": "Degree"},
+                {"value": "college", "label": "College"},
+                {"value": "school", "label": "School"}
+            ]
+        }
     }

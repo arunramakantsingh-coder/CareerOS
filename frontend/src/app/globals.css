@@ -5,6 +5,139 @@
 @layer base {
   :root { --background: 0 0% 98%; --foreground: 222 25% 12%; --card: 0 0% 100%; --card-foreground: 222 25% 12%; --primary: 239 70% 56%; --primary-foreground: 0 0% 100%; --muted: 220 15% 94%; --muted-foreground: 220 10% 42%; --border: 220 14% 88%; --sidebar: 222 28% 97%; --warning: 38 92% 50%; --warning-foreground: 28 80% 24%; }
   .dark { --background: 222 25% 8%; --foreground: 210 20% 96%; --card: 222 22% 11%; --card-foreground: 210 20% 96%; --primary: 239 70% 65%; --primary-foreground: 0 0% 100%; --muted: 222 16% 17%; --muted-foreground: 220 10% 68%; --border: 222 15% 23%; --sidebar: 222 24% 10%; --warning: 38 90% 58%; --warning-foreground: 38 90% 90%; }
+
+  /* CareerOS TECHNO mode: an operating-system-like workspace, not a black web page. */
+  html.techno,
+  html[data-theme='techno'],
+  body.techno,
+  body[data-theme='techno'],
+  .theme-techno {
+    --background: 181 54% 8%;
+    --foreground: 180 32% 94%;
+    --card: 181 39% 11%;
+    --card-foreground: 180 32% 94%;
+    --primary: 180 100% 50%;
+    --primary-foreground: 181 54% 7%;
+    --muted: 180 28% 16%;
+    --muted-foreground: 180 19% 66%;
+    --border: 180 45% 22%;
+    --sidebar: 181 54% 7%;
+    --warning: 43 100% 62%;
+    --warning-foreground: 181 54% 7%;
+  }
+
   * { @apply border-border; }
-  body { @apply bg-background text-foreground antialiased; }
+
+  html,
+  body { min-height: 100%; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+
+  /* Layered teal atmosphere gives TECHNO mode the translucent desktop-OS feel from the reference. */
+  html.techno body,
+  html[data-theme='techno'] body,
+  body.techno,
+  body[data-theme='techno'],
+  .theme-techno {
+    background:
+      radial-gradient(circle at 82% 8%, rgba(0, 255, 255, 0.16), transparent 28rem),
+      radial-gradient(circle at 18% 72%, rgba(0, 190, 190, 0.12), transparent 34rem),
+      linear-gradient(135deg, #061f21 0%, #073536 46%, #06282a 100%);
+    background-attachment: fixed;
+  }
+
+  html.techno body::before,
+  html[data-theme='techno'] body::before,
+  body.techno::before,
+  body[data-theme='techno']::before,
+  .theme-techno::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(0, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,.72), transparent 88%);
+  }
+
+  /* Translucent surfaces: panels should sit on the atmosphere rather than become solid black blocks. */
+  html.techno .bg-background,
+  html[data-theme='techno'] .bg-background,
+  body.techno .bg-background,
+  body[data-theme='techno'] .bg-background,
+  .theme-techno .bg-background {
+    background-color: rgba(5, 35, 37, 0.72);
+  }
+
+  html.techno .bg-card,
+  html[data-theme='techno'] .bg-card,
+  body.techno .bg-card,
+  body[data-theme='techno'] .bg-card,
+  .theme-techno .bg-card {
+    background-color: rgba(11, 39, 41, 0.74);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.16);
+  }
+
+  html.techno .bg-sidebar,
+  html[data-theme='techno'] .bg-sidebar,
+  body.techno .bg-sidebar,
+  body[data-theme='techno'] .bg-sidebar,
+  .theme-techno .bg-sidebar {
+    background-color: rgba(3, 25, 27, 0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  /* The vertical and horizontal browser/app scrollbars are part of the TECHNO visual language. */
+  html.techno,
+  html[data-theme='techno'],
+  body.techno,
+  body[data-theme='techno'],
+  .theme-techno {
+    scrollbar-color: rgba(0, 255, 255, 0.55) rgba(3, 28, 30, 0.9);
+    scrollbar-width: thin;
+  }
+
+  html.techno ::-webkit-scrollbar,
+  html[data-theme='techno'] ::-webkit-scrollbar,
+  body.techno ::-webkit-scrollbar,
+  body[data-theme='techno'] ::-webkit-scrollbar,
+  .theme-techno ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  html.techno ::-webkit-scrollbar-track,
+  html[data-theme='techno'] ::-webkit-scrollbar-track,
+  body.techno ::-webkit-scrollbar-track,
+  body[data-theme='techno'] ::-webkit-scrollbar-track,
+  .theme-techno ::-webkit-scrollbar-track {
+    background: rgba(3, 28, 30, 0.9);
+  }
+
+  html.techno ::-webkit-scrollbar-thumb,
+  html[data-theme='techno'] ::-webkit-scrollbar-thumb,
+  body.techno ::-webkit-scrollbar-thumb,
+  body[data-theme='techno'] ::-webkit-scrollbar-thumb,
+  .theme-techno ::-webkit-scrollbar-thumb {
+    border: 2px solid rgba(3, 28, 30, 0.9);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(0, 255, 255, 0.72), rgba(0, 180, 190, 0.5));
+  }
+
+  html.techno ::-webkit-scrollbar-thumb:hover,
+  html[data-theme='techno'] ::-webkit-scrollbar-thumb:hover,
+  body.techno ::-webkit-scrollbar-thumb:hover,
+  body[data-theme='techno'] ::-webkit-scrollbar-thumb:hover,
+  .theme-techno ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 255, 0.9);
+  }
 }

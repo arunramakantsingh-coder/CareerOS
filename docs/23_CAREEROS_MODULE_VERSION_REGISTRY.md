@@ -175,20 +175,21 @@ M02 does NOT include:
 Branch: `integration/m02-profile-intelligence-v1.0`
 Feature lineage: `feature/m02-profile-intelligence-v1.0`
 Base commit: `1da1670`
-Integration commit: `129ee87`
+Integration commit: `b7c07b5` (latest functional ingestion hardening)
 
 Scope:
 - Google OIDC sign-in
 - Gmail external authorization foundation
 - LinkedIn OIDC sign-in and profile sync foundation
 - multi-file / drag-drop / folder / ZIP / camera document intake
-- safe ZIP extraction
+- safe ZIP extraction including uncompressed expansion cap
 - PDF/DOC/DOCX/TXT/image parsing and OCR fallback
 - document hashing, classification and canonical naming
 - persistent development evidence storage
 - extraction into existing canonical CandidateProfile child models
 - provenance and evidence-backed Profile Intelligence UI
 - browser-hostname API resolution for LAN/mobile access
+- LAN CORS support for private browser origins
 
 Database migration IDs:
 - Reuses existing M02 migrations 014 and 015; no new migration in this slice.
@@ -208,6 +209,7 @@ UI:
 - `/profile/intelligence`
 - login Google/LinkedIn buttons
 - multi-file/folder/camera uploader
+- existing single-file uploader/extractor retained
 
 Status: IMPLEMENTING / RC1
 Verification: PENDING local runtime evidence

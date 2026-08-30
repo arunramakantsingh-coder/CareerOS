@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, Float
+from sqlalchemy import Column, String, Text, JSON, Boolean, ForeignKey, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -52,5 +52,3 @@ class CandidateProfile(Base, TimestampMixin):
     skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")
     certifications = relationship("CandidateCertification", back_populates="candidate", cascade="all, delete-orphan")
     educations = relationship("CandidateEducation", back_populates="candidate", cascade="all, delete-orphan")
-    projects = relationship("CandidateProject", back_populates="candidate", cascade="all, delete-orphan")
-    achievements = relationship("CandidateAchievement", back_populates="candidate", cascade="all, delete-orphan")

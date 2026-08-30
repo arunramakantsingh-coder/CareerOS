@@ -3,8 +3,107 @@
 @tailwind utilities;
 
 @layer base {
-  :root { --background: 0 0% 98%; --foreground: 222 25% 12%; --card: 0 0% 100%; --card-foreground: 222 25% 12%; --primary: 239 70% 56%; --primary-foreground: 0 0% 100%; --muted: 220 15% 94%; --muted-foreground: 220 10% 42%; --border: 220 14% 88%; --sidebar: 222 28% 97%; --warning: 38 92% 50%; --warning-foreground: 28 80% 24%; }
-  .dark { --background: 222 25% 8%; --foreground: 210 20% 96%; --card: 222 22% 11%; --card-foreground: 210 20% 96%; --primary: 239 70% 65%; --primary-foreground: 0 0% 100%; --muted: 222 16% 17%; --muted-foreground: 220 10% 68%; --border: 222 15% 23%; --sidebar: 222 24% 10%; --warning: 38 90% 58%; --warning-foreground: 38 90% 90%; }
+  :root {
+    --background: 210 33% 98%;
+    --foreground: 222 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 12%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 42%;
+    --border: 220 14% 88%;
+    --sidebar: 222 28% 97%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 28 80% 24%;
+  }
+
+  .dark {
+    --background: 222 25% 8%;
+    --foreground: 210 20% 96%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 20% 96%;
+    --primary: 239 70% 65%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 222 16% 17%;
+    --muted-foreground: 220 10% 68%;
+    --border: 222 15% 23%;
+    --sidebar: 222 24% 10%;
+    --warning: 38 90% 58%;
+    --warning-foreground: 38 90% 90%;
+  }
+
+  [data-theme="techno"] {
+    color-scheme: dark;
+    --background: 195 48% 3%;
+    --foreground: 190 40% 94%;
+    --card: 195 43% 6%;
+    --card-foreground: 190 40% 94%;
+    --primary: 187 100% 50%;
+    --primary-foreground: 195 48% 3%;
+    --muted: 193 39% 10%;
+    --muted-foreground: 191 28% 63%;
+    --border: 190 62% 17%;
+    --sidebar: 195 46% 4%;
+    --warning: 43 100% 58%;
+    --warning-foreground: 43 100% 10%;
+  }
+
   * { @apply border-border; }
+
+  html, body { min-height: 100%; }
+
   body { @apply bg-background text-foreground antialiased; }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+    color: hsl(var(--foreground));
+  }
+}
+
+/* CareerOS navigation scrollbar — deliberately scoped so browser/default
+   scrollbars elsewhere in the application are not changed. */
+.careeros-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.72) hsl(var(--muted) / 0.75);
+}
+
+.careeros-nav-scroll::-webkit-scrollbar { width: 10px; }
+.careeros-nav-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.7);
+  border-left: 1px solid hsl(var(--border));
+}
+.careeros-nav-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.72);
+  border-radius: 999px;
+  border: 2px solid hsl(var(--muted));
+}
+.careeros-nav-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
+
+[data-theme="techno"] .careeros-nav-scroll {
+  scrollbar-color: hsl(var(--primary) / 0.92) hsl(193 45% 8%);
+}
+[data-theme="techno"] .careeros-nav-scroll::-webkit-scrollbar-track {
+  background: hsl(193 45% 8%);
+  border-left-color: hsl(var(--primary) / 0.16);
+}
+[data-theme="techno"] .careeros-nav-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.88);
+  border-color: hsl(193 45% 8%);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.28);
+}
+[data-theme="techno"] .careeros-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+  box-shadow: 0 0 18px hsl(var(--primary) / 0.48);
+}
+
+@layer components {
+  .techno-surface {
+    background:
+      linear-gradient(135deg, hsl(var(--card) / 0.98), hsl(var(--background) / 0.96));
+  }
+
+  [data-theme="techno"] .techno-glow {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.16), 0 0 28px hsl(var(--primary) / 0.08);
+  }
 }

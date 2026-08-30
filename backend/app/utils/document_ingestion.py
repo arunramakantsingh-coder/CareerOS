@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import io
-import os
 import re
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-
-SUPPORTED_EXTENSIONS = {
-    ".pdf", ".doc", ".docx", ".txt", ".rtf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"
-}
+SUPPORTED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".rtf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".zip"}
 MAX_FILE_SIZE = 25 * 1024 * 1024
 MAX_ARCHIVE_SIZE = 100 * 1024 * 1024
 MAX_ARCHIVE_FILES = 100
@@ -38,13 +34,10 @@ def safe_relative_path(relative_path: str | None) -> str | None:
 
 
 def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[str, Dict[str, Any]]:
-    """Extract text while preserving the original bytes as authoritative evidence."""
     suffix = Path(filename).suffix.lower()
     meta: Dict[str, Any] = {"method": "none", "ocr_required": False, "page_count": None}
-
     if suffix == ".txt" or (mime_type or "").startswith("text/"):
         return content.decode("utf-8", errors="replace"), {**meta, "method": "text"}
-
     if suffix == ".docx":
         try:
             from docx import Document as DocxDocument
@@ -53,7 +46,6 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
             return text, {**meta, "method": "docx"}
         except Exception as exc:
             return "", {**meta, "method": "docx_error", "error": str(exc)}
-
     if suffix == ".pdf":
         try:
             from pypdf import PdfReader
@@ -65,13 +57,10 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
                 return text, {**meta, "method": "pdf_text"}
         except Exception as exc:
             meta["pdf_error"] = str(exc)
-
-        # Scanned PDF fallback: render pages and OCR them.
         try:
             import fitz
             from PIL import Image
             import pytesseract
-
             pdf = fitz.open(stream=content, filetype="pdf")
             pages: List[str] = []
             for page in pdf:
@@ -79,23 +68,17 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
                 image = Image.open(io.BytesIO(pix.tobytes("png")))
                 pages.append(pytesseract.image_to_string(image))
             meta["page_count"] = len(pdf)
-            meta["ocr_required"] = True
-            meta["method"] = "pdf_ocr"
-            return "\n\n".join(pages).strip(), meta
+            return "\n\n".join(pages).strip(), {**meta, "ocr_required": True, "method": "pdf_ocr"}
         except Exception as exc:
             return "", {**meta, "ocr_required": True, "method": "pdf_ocr_error", "error": str(exc)}
-
     if suffix in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}:
         try:
             from PIL import Image
             import pytesseract
-
             image = Image.open(io.BytesIO(content))
-            text = pytesseract.image_to_string(image)
-            return text.strip(), {**meta, "method": "image_ocr", "ocr_required": True}
+            return pytesseract.image_to_string(image).strip(), {**meta, "method": "image_ocr", "ocr_required": True}
         except Exception as exc:
             return "", {**meta, "method": "image_ocr_error", "ocr_required": True, "error": str(exc)}
-
     return "", {**meta, "method": "unsupported"}
 
 
@@ -116,8 +99,7 @@ def classify_document(filename: str, text: str) -> Dict[str, Any]:
     for category, subtype, terms in rules:
         hits = sum(1 for term in terms if term in haystack)
         if hits:
-            confidence = min(0.55 + hits * 0.12, 0.99)
-            return {"category": category, "subcategory": subtype, "confidence": round(confidence, 2)}
+            return {"category": category, "subcategory": subtype, "confidence": round(min(0.55 + hits * 0.12, 0.99), 2)}
     return {"category": "other", "subcategory": "unclassified", "confidence": 0.25}
 
 
@@ -146,11 +128,11 @@ def iter_zip_entries(content: bytes) -> Iterable[Tuple[str, bytes]]:
             raise ValueError("ZIP archive exceeds the 100-file limit")
         for info in infos:
             relative = safe_relative_path(info.filename) or "document"
-            if Path(relative).suffix.lower() not in SUPPORTED_EXTENSIONS:
+            suffix = Path(relative).suffix.lower()
+            if suffix not in SUPPORTED_EXTENSIONS or suffix == ".zip":
                 continue
             if info.file_size > MAX_FILE_SIZE:
                 continue
-            # Zip Slip protection: validate the normalized path before reading.
             if any(part == ".." for part in Path(relative).parts):
                 raise ValueError("Unsafe ZIP entry path")
             yield relative, archive.read(info)

@@ -1,4 +1,4 @@
-﻿services:
+services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -21,10 +21,12 @@
       DATABASE_URL: postgresql://careeros:careeros_dev_password@postgres:5432/careeros
       ENVIRONMENT: development
       LOG_LEVEL: DEBUG
+      FRONTEND_BASE_URL: http://localhost:3000
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./data/documents:/app/storage/documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +35,7 @@
   frontend:
     build: ./frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ""
     ports:
       - "3000:3000"
     volumes:
@@ -45,6 +47,3 @@
 
 volumes:
   postgres_data:
-
-
-

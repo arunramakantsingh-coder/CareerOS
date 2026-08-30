@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 SUPPORTED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".rtf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".zip"}
 MAX_FILE_SIZE = 25 * 1024 * 1024
 MAX_ARCHIVE_SIZE = 100 * 1024 * 1024
+MAX_ARCHIVE_UNCOMPRESSED_SIZE = 250 * 1024 * 1024
 MAX_ARCHIVE_FILES = 100
 
 
@@ -132,6 +133,9 @@ def iter_zip_entries(content: bytes) -> Iterable[Tuple[str, bytes]]:
         infos = [info for info in archive.infolist() if not info.is_dir()]
         if len(infos) > MAX_ARCHIVE_FILES:
             raise ValueError("ZIP archive exceeds the 100-file limit")
+        total_uncompressed = sum(info.file_size for info in infos)
+        if total_uncompressed > MAX_ARCHIVE_UNCOMPRESSED_SIZE:
+            raise ValueError("ZIP archive expands beyond the 250MB safety limit")
         for info in infos:
             relative = safe_relative_path(info.filename) or "document"
             suffix = Path(relative).suffix.lower()

@@ -22,7 +22,6 @@ class ExtractionService:
         text = self._get_document_text(document)
         if not text.strip():
             raise ValueError("No extractable text was produced for this document")
-
         parsed_data = self.parser.parse(text, str(document.id))
         extraction = ExtractionResult(
             candidate_id=document.candidate_id,
@@ -36,18 +35,12 @@ class ExtractionService:
         )
         db.add(extraction)
         db.flush()
-
         self._create_fields(extraction.id, parsed_data, document, db)
         document.extraction_id = extraction.id
         document.extraction_status = "complete"
         document.status = "processed"
-        document.processing_status = {
-            **(document.processing_status or {}),
-            "stage": "profile_enriched",
-            "extraction_id": str(extraction.id),
-        }
+        document.processing_status = {**(document.processing_status or {}), "stage": "profile_enriched", "extraction_id": str(extraction.id)}
         db.commit()
-
         self._populate_profile(document.candidate_id, parsed_data, document, db)
         db.refresh(extraction)
         return extraction
@@ -86,11 +79,10 @@ class ExtractionService:
                     confidence=0.8,
                     confidence_reason="Extracted from authoritative source document",
                     extraction_status="extracted",
-                    metadata={"document_id": str(document.id)},
+                    extraction_metadata={"document_id": str(document.id)},
                 )
                 db.add(field)
                 fields.append(field)
-
         for skill in parsed_data.get("skills", []):
             if skill.get("name"):
                 field = ExtractionField(
@@ -103,7 +95,7 @@ class ExtractionService:
                     confidence=skill.get("confidence", 0.7),
                     confidence_reason="Matched against document skill vocabulary",
                     extraction_status="extracted",
-                    metadata={"document_id": str(document.id)},
+                    extraction_metadata={"document_id": str(document.id)},
                 )
                 db.add(field)
                 fields.append(field)
@@ -113,9 +105,7 @@ class ExtractionService:
         profile = db.query(CandidateProfile).filter(CandidateProfile.id == candidate_id).first()
         if not profile:
             return
-
         personal = parsed_data.get("personal", {})
-        # Only fill blank canonical fields automatically. Conflicting non-empty values remain untouched.
         mappings = {
             "full_name": personal.get("name"),
             "primary_email": personal.get("email"),

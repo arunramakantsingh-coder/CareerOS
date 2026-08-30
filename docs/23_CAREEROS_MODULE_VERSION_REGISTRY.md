@@ -171,9 +171,11 @@ M02 does NOT include:
 - autonomous application submission
 - production SaaS monetization
 
-### M02-S02 / PROFILE-INTELLIGENCE-1.0 — IMPLEMENTING
-Branch: `feature/m02-profile-intelligence-v1.0`
-Base commit: `16563b4`
+### M02-S02 / PROFILE-INTELLIGENCE-1.0 — RC1 / IMPLEMENTING
+Branch: `integration/m02-profile-intelligence-v1.0`
+Feature lineage: `feature/m02-profile-intelligence-v1.0`
+Base commit: `1da1670`
+Integration commit: `129ee87`
 
 Scope:
 - Google OIDC sign-in
@@ -181,7 +183,7 @@ Scope:
 - LinkedIn OIDC sign-in and profile sync foundation
 - multi-file / drag-drop / folder / ZIP / camera document intake
 - safe ZIP extraction
-- PDF/DOCX/TXT/image parsing and OCR fallback
+- PDF/DOC/DOCX/TXT/image parsing and OCR fallback
 - document hashing, classification and canonical naming
 - persistent development evidence storage
 - extraction into existing canonical CandidateProfile child models
@@ -207,7 +209,7 @@ UI:
 - login Google/LinkedIn buttons
 - multi-file/folder/camera uploader
 
-Status: IMPLEMENTING
+Status: IMPLEMENTING / RC1
 Verification: PENDING local runtime evidence
 Known limitations: LinkedIn self-serve OIDC does not provide an arbitrary downloadable member CV; deeper profile fields depend on LinkedIn-approved API access. Full conflict-review UI remains a follow-on profile slice.
 

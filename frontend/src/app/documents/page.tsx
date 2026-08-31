@@ -1,182 +1,38 @@
-﻿"use client";
+"use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import DocumentUpload from "@/components/documents/DocumentUpload";
 import DocumentBulkUpload from "@/components/documents/DocumentBulkUpload";
 import { apiClient } from "@/lib/api/client";
+import { CareerOSShell, Card, PageHeader, Badge } from "@/components/CareerOSShell";
 
-interface Document {
-  id: string;
-  original_filename: string;
-  filename?: string;
-  file_size: number;
-  document_category: string;
-  document_subcategory: string | null;
-  status: string;
-  extraction_status: string;
-  classification_confidence?: number;
-  created_at: string;
-}
+type DocumentRecord={id:string;original_filename:string;filename?:string;file_size:number;document_category:string;document_subcategory?:string|null;status:string;extraction_status:string;classification_confidence?:number;created_at:string};
 
-export default function DocumentsPage() {
-  const { token, isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+export default function DocumentsPage(){
+  const {token,isAuthenticated,isLoading}=useAuth(); const router=useRouter();
+  const [documents,setDocuments]=useState<DocumentRecord[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState(""); const [category,setCategory]=useState("all");
+  useEffect(()=>{if(!isLoading&&!isAuthenticated)router.push('/login')},[isLoading,isAuthenticated,router]);
+  const load=async()=>{try{setDocuments(await apiClient.get<DocumentRecord[]>("/api/v1/documents/"));setError("")}catch(e:any){setError(e.message||"Unable to load document vault")}finally{setLoading(false)}};
+  useEffect(()=>{if(isAuthenticated&&token)load()},[isAuthenticated,token]);
+  const remove=async(id:string)=>{if(!confirm('Delete this document from CareerOS?'))return;try{await apiClient.delete(`/api/v1/documents/${id}`);setDocuments(v=>v.filter(d=>d.id!==id))}catch{alert('Unable to delete document')}};
+  const filtered=useMemo(()=>category==='all'?documents:documents.filter(d=>d.document_category===category),[documents,category]);
+  const cvs=documents.filter(d=>d.document_category==='cv'); const processed=documents.filter(d=>d.extraction_status==='complete').length;
+  if(isLoading||loading)return <div className="grid min-h-screen place-items-center bg-background">Loading CV & Document Vault…</div>;
+  if(!isAuthenticated)return null;
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.push("/login");
-  }, [isLoading, isAuthenticated, router]);
+  return <CareerOSShell>
+    <PageHeader eyebrow="Profile · Evidence" title="CV & Professional Document Vault" description="Your CV is a dedicated profile source. The Professional Document Vault is the broader evidence repository for employment, education, certifications, projects and other career records." action={<Link href="/profile/intelligence" className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Open Profile Intelligence</Link>} />
+    {error&&<div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</div>}
 
-  useEffect(() => {
-    if (isAuthenticated && token) fetchDocuments();
-  }, [isAuthenticated, token]);
+    <section id="cv" className="scroll-mt-36"><Card title="CV / Resume · dedicated intake" className="techno-glow"><div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,.7fr)]"><DocumentUpload category="cv" onUploadComplete={()=>load()}/><div className="rounded-xl border bg-background/30 p-5"><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary">Primary career source</p><h3 className="mt-2 text-lg font-semibold">Keep your CV independent</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">CareerOS can use the CV to seed your professional timeline, skills and credentials while preserving the original document as evidence.</p><div className="mt-4 space-y-2 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">CV versions in vault</span><strong>{cvs.length}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Extraction</span><Badge tone="blue">Evidence pipeline</Badge></div></div></div></div></Card></section>
 
-  const fetchDocuments = async () => {
-    try {
-      setDocuments(await apiClient.get<Document[]>("/api/v1/documents/"));
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch documents");
-    } finally {
-      setLoading(false);
-    }
-  };
+    <section id="vault" className="mt-5 scroll-mt-36"><Card title="Professional Document Vault · bulk evidence"><div className="mb-4 grid gap-3 md:grid-cols-4">{[['Multiple files','Drop or browse many'],['Folder','Preserve relative paths'],['ZIP archive','Safe extraction'],['Camera / scan','Mobile evidence intake']].map(([a,b])=><div key={a} className="rounded-lg border bg-background/25 p-3"><p className="text-sm font-semibold">{a}</p><p className="mt-1 text-xs text-muted-foreground">{b}</p></div>)}</div><DocumentBulkUpload onComplete={()=>load()}/></Card></section>
 
-  const handleUploadComplete = (document: Document) => {
-    setDocuments((current) => [document, ...current]);
-  };
+    <div className="mt-5 grid gap-4 md:grid-cols-4"><Card><p className="text-xs text-muted-foreground">Total evidence</p><p className="mt-1 text-3xl font-bold">{documents.length}</p></Card><Card><p className="text-xs text-muted-foreground">CV / Resume</p><p className="mt-1 text-3xl font-bold">{cvs.length}</p></Card><Card><p className="text-xs text-muted-foreground">Extracted</p><p className="mt-1 text-3xl font-bold">{processed}</p></Card><Card><p className="text-xs text-muted-foreground">Profile link</p><Link href="/profile" className="mt-2 inline-block text-sm font-semibold text-primary">Back to Profile →</Link></Card></div>
 
-  const handleDelete = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-    try {
-      await apiClient.delete(`/api/v1/documents/${docId}`);
-      setDocuments((current) => current.filter((d) => d.id !== docId));
-    } catch (err) {
-      alert("Failed to delete document");
-    }
-  };
-
-  const handleExtract = async (docId: string) => {
-    try {
-      await apiClient.post("/api/v1/extraction/extract", { document_id: docId });
-      alert("Extraction started successfully!");
-      fetchDocuments();
-    } catch (err) {
-      alert("Failed to start extraction");
-    }
-  };
-
-  const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      cv: "CV / Resume",
-      employment: "Employment Evidence",
-      certification: "Certification",
-      education: "Education",
-      project: "Project",
-      achievement: "Achievement",
-      identity: "Identity",
-      other: "Other",
-    };
-    return labels[category] || category;
-  };
-
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      uploaded: "bg-yellow-100 text-yellow-800",
-      processed: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-      duplicate: "bg-purple-100 text-purple-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const getExtractionBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      in_progress: "bg-blue-100 text-blue-800",
-      complete: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const categories = [
-    { value: "all", label: "All Documents" },
-    { value: "cv", label: "CV / Resume" },
-    { value: "employment", label: "Employment" },
-    { value: "certification", label: "Certifications" },
-    { value: "education", label: "Education" },
-    { value: "project", label: "Projects" },
-    { value: "achievement", label: "Achievements" },
-    { value: "identity", label: "Identity" },
-    { value: "other", label: "Other" },
-  ];
-
-  const filteredDocuments = selectedCategory === "all"
-    ? documents
-    : documents.filter((d) => d.document_category === selectedCategory);
-
-  if (isLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) return null;
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8 gap-3">
-          <div><h1 className="text-2xl font-bold text-gray-900">Professional Document Vault</h1><p className="text-gray-600">Store and manage your career documents</p></div>
-          <div className="flex gap-2"><Link href="/profile/intelligence" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">Career Intelligence →</Link><a href="/profile" className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">← Back to Profile</a></div>
-        </div>
-
-        {error && <div className="rounded-md bg-red-50 p-4 mb-6"><p className="text-sm text-red-800">{error}</p></div>}
-
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Bulk Professional Intake</h2>
-          <DocumentBulkUpload onComplete={() => fetchDocuments()} />
-        </div>
-
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Single Document Upload</h2>
-          <DocumentUpload onUploadComplete={handleUploadComplete} />
-        </div>
-
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between mb-6 gap-3">
-            <h2 className="text-lg font-semibold text-gray-900">Your Documents</h2>
-            <div className="flex items-center gap-2"><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">{categories.map((cat) => <option key={cat.value} value={cat.value}>{cat.label}</option>)}</select><span className="text-sm text-gray-500">{documents.length} files</span></div>
-          </div>
-
-          {documents.length === 0 ? (
-            <div className="text-center py-12"><div className="text-6xl mb-4">📂</div><p className="text-gray-600">No documents uploaded yet</p><p className="text-sm text-gray-500">Upload your CV or other career documents to get started</p></div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {filteredDocuments.map((doc) => (
-                <div key={doc.id} className="py-4 flex items-center justify-between hover:bg-gray-50 px-4 rounded-lg transition-colors gap-3">
-                  <div className="flex items-center gap-4 min-w-0"><div className="text-2xl flex-shrink-0">{doc.document_category === "cv" ? "📄" : doc.document_category === "employment" ? "💼" : doc.document_category === "certification" ? "🏆" : doc.document_category === "education" ? "🎓" : "📎"}</div><div className="min-w-0 flex-1"><p className="font-medium text-gray-900 truncate">{doc.filename || doc.original_filename}</p><div className="flex flex-wrap items-center gap-2 text-xs text-gray-500"><span>{getCategoryLabel(doc.document_category)}</span><span>•</span><span>{(doc.file_size / 1024).toFixed(1)} KB</span><span className={`px-2 py-0.5 rounded-full ${getStatusBadge(doc.status)}`}>{doc.status}</span><span className={`px-2 py-0.5 rounded-full ${getExtractionBadge(doc.extraction_status)}`}>{doc.extraction_status}</span>{doc.classification_confidence != null && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">{Math.round(doc.classification_confidence * 100)}% classified</span>}</div></div></div>
-                  <div className="flex items-center gap-2 flex-shrink-0">{doc.extraction_status === "pending" && <button onClick={() => handleExtract(doc.id)} className="text-sm text-blue-600 hover:text-blue-800">Extract</button>}<button onClick={() => handleDelete(doc.id)} className="text-sm text-red-600 hover:text-red-800">Delete</button></div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6"><h3 className="text-sm font-medium text-gray-900 mb-4">Document Vault Summary</h3><div className="grid grid-cols-2 md:grid-cols-4 gap-4"><div className="text-center p-3 bg-gray-50 rounded-lg"><p className="text-2xl font-bold text-gray-900">{documents.length}</p><p className="text-xs text-gray-500">Total Documents</p></div><div className="text-center p-3 bg-green-50 rounded-lg"><p className="text-2xl font-bold text-green-600">{documents.filter((d) => d.extraction_status === "complete").length}</p><p className="text-xs text-gray-500">Extracted</p></div><div className="text-center p-3 bg-yellow-50 rounded-lg"><p className="text-2xl font-bold text-yellow-600">{documents.filter((d) => d.extraction_status === "pending").length}</p><p className="text-xs text-gray-500">Pending Extraction</p></div><div className="text-center p-3 bg-blue-50 rounded-lg"><p className="text-2xl font-bold text-blue-600">{documents.filter((d) => d.document_category === "cv").length}</p><p className="text-xs text-gray-500">CVs Uploaded</p></div></div></div>
-      </div>
-    </div>
-  );
+    <div className="mt-5"><Card title="Evidence library"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Original evidence and processing status remain visible.</p><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-lg border bg-background px-3 py-2 text-sm"><option value="all">All documents</option><option value="cv">CV / Resume</option><option value="employment">Employment</option><option value="certification">Certifications</option><option value="education">Education</option><option value="project">Projects</option><option value="achievement">Achievements</option><option value="other">Other</option></select></div>{filtered.length===0?<div className="rounded-xl border border-dashed p-10 text-center"><p className="font-semibold">No evidence in this view yet</p><p className="mt-1 text-sm text-muted-foreground">Upload your CV or professional documents above.</p></div>:<div className="divide-y">{filtered.map(doc=><div key={doc.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate text-sm font-semibold">{doc.filename||doc.original_filename}</p><div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{doc.document_category||'document'}</span><span>•</span><span>{(Number(doc.file_size||0)/1024).toFixed(0)} KB</span><Badge tone={doc.status==='failed'?'warn':'muted'}>{doc.status}</Badge><Badge tone={doc.extraction_status==='complete'?'good':'blue'}>{doc.extraction_status}</Badge>{doc.classification_confidence!=null&&<span>{Math.round(doc.classification_confidence*100)}% classification</span>}</div></div><button onClick={()=>remove(doc.id)} className="self-start rounded-lg border px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10 sm:self-auto">Delete</button></div>)}</div>}</Card></div>
+  </CareerOSShell>;
 }

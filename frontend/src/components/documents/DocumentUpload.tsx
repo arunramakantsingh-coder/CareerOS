@@ -1,201 +1,29 @@
-﻿"use client";
+"use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+import { resolveApiBaseUrl } from "@/lib/api/client";
 
-interface DocumentUploadProps {
-  onUploadComplete?: (document: any) => void;
-  category?: string;
-  subcategory?: string;
-}
+interface DocumentUploadProps { onUploadComplete?: (document: any) => void; category?: string; subcategory?: string; }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-export default function DocumentUpload({ onUploadComplete, category, subcategory }: DocumentUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+export default function DocumentUpload({ onUploadComplete, category="cv", subcategory }: DocumentUploadProps) {
+  const [isDragging,setIsDragging]=useState(false); const [isUploading,setIsUploading]=useState(false); const [progress,setProgress]=useState(0); const [error,setError]=useState<string|null>(null); const [uploadedFile,setUploadedFile]=useState<any>(null); const fileInputRef=useRef<HTMLInputElement>(null);
+  const handleFile=(file:File)=>{
+    setIsUploading(true);setError(null);setProgress(0);
+    const allowed=[".pdf",".doc",".docx",".txt",".rtf"]; const ext=file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if(!allowed.includes(ext)){setError("Please upload a PDF, DOC, DOCX, TXT or RTF CV.");setIsUploading(false);return;}
+    if(file.size>25*1024*1024){setError("File size exceeds the 25MB limit.");setIsUploading(false);return;}
+    const token=localStorage.getItem("access_token")||localStorage.getItem("careeros_token"); if(!token){setError("Please sign in to upload your CV.");setIsUploading(false);return;}
+    const form=new FormData(); form.append("files",file,file.name); form.append("relative_paths",file.name); form.append("document_category",category); if(subcategory)form.append("document_subcategory",subcategory);
+    const xhr=new XMLHttpRequest(); xhr.open("POST",`${resolveApiBaseUrl()}/api/v1/documents/batch-upload`); xhr.setRequestHeader("Authorization",`Bearer ${token}`);
+    xhr.upload.onprogress=e=>{if(e.lengthComputable)setProgress(Math.round((e.loaded/e.total)*100));};
+    xhr.onload=()=>{try{const payload=JSON.parse(xhr.responseText);if(xhr.status>=200&&xhr.status<300){const result=payload.results?.[0]||payload;setUploadedFile(result);setProgress(100);onUploadComplete?.(result);}else setError(payload.detail||"Upload failed.");}catch{setError("The server returned an unexpected upload response.");}finally{setIsUploading(false);}};
+    xhr.onerror=()=>{setError("Network error. Check that CareerOS can reach the backend.");setIsUploading(false);}; xhr.send(form);
   };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
-    }
-  };
-
-  const handleFile = async (file: File) => {
-    setIsUploading(true);
-    setError(null);
-    setProgress(0);
-
-    // Validate file type
-    const validTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
-    if (!validTypes.includes(file.type)) {
-      setError("Please upload a PDF, DOC, DOCX, or TXT file");
-      setIsUploading(false);
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File size exceeds 5MB limit");
-      setIsUploading(false);
-      return;
-    }
-
-    try {
-      // Get token
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        setError("Please sign in to upload documents");
-        setIsUploading(false);
-        return;
-      }
-
-      // Create form data
-      const formData = new FormData();
-      formData.append("file", file);
-      if (category) formData.append("document_category", category);
-      if (subcategory) formData.append("document_subcategory", subcategory);
-
-      // Upload with progress tracking
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${API_URL}/api/v1/documents/upload`, true);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          setProgress(Math.round(percentComplete));
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 200 || xhr.status === 201) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadedFile(response);
-          setProgress(100);
-          if (onUploadComplete) onUploadComplete(response);
-        } else {
-          const error = JSON.parse(xhr.responseText);
-          setError(error.detail || "Upload failed");
-        }
-        setIsUploading(false);
-      };
-
-      xhr.onerror = () => {
-        setError("Network error. Please try again.");
-        setIsUploading(false);
-      };
-
-      xhr.send(formData);
-    } catch (err) {
-      setError("Upload failed. Please try again.");
-      setIsUploading(false);
-    }
-  };
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
-
-  return (
-    <div className="w-full">
-      <div
-        className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-        }`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        {isUploading ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-            </div>
-            <p className="text-sm text-gray-600">Uploading...</p>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-            <p className="text-xs text-gray-500">{progress}%</p>
-          </div>
-        ) : uploadedFile ? (
-          <div className="space-y-3">
-            <div className="text-4xl">✅</div>
-            <p className="font-medium text-gray-900">{uploadedFile.original_filename}</p>
-            <p className="text-sm text-gray-500">
-              {(uploadedFile.file_size / 1024).toFixed(1)} KB • {uploadedFile.document_category || "CV"}
-            </p>
-            <p className="text-sm text-green-600">Upload complete!</p>
-            <button
-              onClick={() => {
-                setUploadedFile(null);
-                setProgress(0);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Upload another file
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-5xl">📄</div>
-            <p className="text-gray-600">Drag and drop your file here, or</p>
-            <button
-              onClick={triggerFileInput}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Browse Files
-            </button>
-            <p className="text-xs text-gray-500">Supported formats: PDF, DOC, DOCX, TXT (max 5MB)</p>
-          </div>
-        )}
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.doc,.docx,.txt"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-
-      {error && (
-        <div className="mt-3 rounded-md bg-red-50 p-3">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
+  return <div className="w-full">
+    <div className={`relative rounded-2xl border-2 border-dashed p-8 text-center transition ${isDragging?"border-primary bg-primary/5":"border-border bg-background/25 hover:border-primary/50"}`} onDragEnter={e=>{e.preventDefault();setIsDragging(true)}} onDragLeave={e=>{e.preventDefault();setIsDragging(false)}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();setIsDragging(false);if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0])}}>
+      {isUploading?<div className="space-y-4"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary">↥</div><p className="text-sm font-semibold">Uploading and preparing your CV…</p><div className="mx-auto h-2 max-w-xl overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{width:`${progress}%`}}/></div><p className="text-xs text-muted-foreground">{progress}%</p></div>:uploadedFile?<div className="space-y-3"><div className="text-4xl">✓</div><p className="font-semibold">{uploadedFile.filename||uploadedFile.original_filename}</p><p className="text-sm text-muted-foreground">CV uploaded to the evidence pipeline · {uploadedFile.extraction_status||uploadedFile.status}</p><button onClick={()=>{setUploadedFile(null);setProgress(0);if(fileInputRef.current)fileInputRef.current.value=""}} className="text-sm font-semibold text-primary">Upload another CV</button></div>:<div className="space-y-4"><div className="text-5xl">▤</div><div><h3 className="text-lg font-semibold">Upload your CV / Resume</h3><p className="mt-1 text-sm text-muted-foreground">Drop one CV here or browse. This is kept separate from bulk professional evidence.</p></div><button type="button" onClick={()=>fileInputRef.current?.click()} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Choose CV</button><p className="text-xs text-muted-foreground">PDF, DOC, DOCX, TXT, RTF · up to 25MB</p></div>}
     </div>
-  );
+    <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.rtf" className="hidden" onChange={e=>e.target.files?.[0]&&handleFile(e.target.files[0])}/>
+    {error&&<div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{error}</div>}
+  </div>;
 }

@@ -21,7 +21,11 @@ services:
       DATABASE_URL: postgresql://careeros:careeros_dev_password@postgres:5432/careeros
       ENVIRONMENT: development
       LOG_LEVEL: DEBUG
-      FRONTEND_BASE_URL: http://localhost:3000
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
     ports:
       - "8000:8000"
     volumes:

@@ -238,3 +238,10 @@ async def linkedin_sync_profile(current_user: User = Depends(get_current_user), 
     enrich_candidate_from_identity(db, current_user, info)
     db.commit()
     return {"provider": "linkedin", "synced": True, "profile": info}
+
+
+@router.get("/external")
+async def external_connections(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return safe connection metadata; never expose provider access/refresh tokens."""
+    identities = db.query(ExternalIdentity).filter(ExternalIdentity.user_id == current_user.id, ExternalIdentity.is_active == True).all()
+    return [{"id": str(x.id), "provider": x.provider, "provider_email": x.provider_email, "scopes": x.scopes or [], "last_used": x.last_used} for x in identities]

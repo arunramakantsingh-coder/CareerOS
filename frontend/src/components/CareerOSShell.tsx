@@ -18,10 +18,16 @@ const groups: NavGroup[] = [
   { title:'Global', items:[['Global Mobility','/global-mobility','◎']] },
 ];
 
-const topNav: NavItem[] = [
-  ['Dashboard','/','⌂'], ['Profile','/profile','◎'], ['CV & Documents','/documents','▤'], ['Career Vault','/career-vault','◇'],
-  ['Personas','/personas','◌'], ['Jobs','/jobs','▣'], ['Applications','/applications','☷'], ['Application Studio','/application-studio','✦'],
-  ['Resume Studio','/resume-studio','▤'], ['Company Intelligence','/company-intelligence','⌁'], ['Interviews','/interviews','◉'], ['Analytics','/analytics','⌁'],
+// The horizontal strip is intentionally NOT a second copy of the sidebar.
+// It represents the user's career journey at a glance; the sidebar remains the
+// detailed application/module navigator.
+const journeyNav: NavItem[] = [
+  ['Home','/','⌂'],
+  ['Build','/profile','◎'],
+  ['Discover','/jobs','⌕'],
+  ['Apply','/applications','↗'],
+  ['Interview','/live-interview','◉'],
+  ['Insights','/analytics','✦'],
 ];
 
 const themes: Array<{key: CareerOSTheme; label: string}> = [
@@ -76,7 +82,17 @@ export function CareerOSShell({children}:{children:ReactNode}){
           <Link href="/settings" className="rounded-lg border bg-card/60 px-3 py-2 text-xs font-semibold transition hover:bg-muted">Settings</Link>
           <div className="relative"><button type="button" aria-label="More application options" onClick={()=>setMenuOpen(v=>!v)} className="grid h-9 w-9 place-items-center rounded-lg border bg-card/60 text-lg hover:bg-muted">⋮</button>{menuOpen&&<div className="absolute right-0 top-11 w-56 rounded-xl border bg-card p-2 shadow-xl"><Link onClick={()=>setMenuOpen(false)} href="/profile" className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Professional identity</Link><Link onClick={()=>setMenuOpen(false)} href="/profile/intelligence" className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Profile intelligence</Link><Link onClick={()=>setMenuOpen(false)} href="/settings" className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Application settings</Link><button onClick={logout} className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 hover:bg-muted">Sign out</button></div>}</div>
         </div>
-        <div className="border-t bg-card/20 px-3 py-2"><nav className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Primary navigation">{topNav.map(([label,href,icon])=>{const active=isActive(href);return <Link key={href} href={href} className={`flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${active?'bg-primary/10 text-primary shadow-[inset_0_-2px_0_hsl(var(--primary))]':'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}><span>{icon}</span><span>{label}</span></Link>})}</nav></div>
+
+        <div className="border-t bg-card/20 px-3 py-2 sm:px-4">
+          <nav className="flex items-center gap-1 overflow-x-auto pb-0.5" aria-label="Career journey">
+            {journeyNav.map(([label,href,icon])=>{
+              const active=isActive(href);
+              return <Link key={href} href={href} title={label} className={`group flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${active?'bg-primary/10 text-primary shadow-[inset_0_-2px_0_hsl(var(--primary))]':'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}>
+                <span className="text-[11px] opacity-90">{icon}</span><span>{label}</span>
+              </Link>;
+            })}
+          </nav>
+        </div>
       </header>
 
       <div className="border-b bg-background px-3 py-2 md:hidden"><select value={pathname} onChange={e=>router.push(e.target.value)} className="w-full rounded-lg border bg-card px-3 py-2.5 text-sm">{[...groups.flatMap(g=>g.items),['Settings','/settings','⚙'] as NavItem].map(([label,href])=><option key={href} value={href}>{label}</option>)}</select></div>

@@ -8,7 +8,7 @@ CareerOS is an existing **AI-powered Global Career Operating System**. Do not re
 
 Read this file, then inspect the exact current branch and commit. The active v0.2 development line at the 2026-09-03 handover is:
 
-`working/m02-profile-builder-v1.3-20260902` @ `a3dc548`
+`working/m02-profile-builder-v1.3-20260902` @ `be50dbd`
 
 The complete current handover is maintained on that branch under:
 

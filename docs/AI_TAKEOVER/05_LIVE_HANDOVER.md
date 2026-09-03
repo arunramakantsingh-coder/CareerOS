@@ -5,32 +5,32 @@
 ## Snapshot
 
 - Date: 2026-09-03
-- Current development line: `working/m02-profile-builder-v1.3-20260902`
-- Current HEAD after documentation merge: `7a95882102ba41169b86708cb72dc0fca24e6aaf`
-- Pre-documentation implementation checkpoint: `a3dc54842961362b708b8849ac2e7ec79feab4f0`
-- Safety checkpoint: `backup/pre-ai-handover-20260903` @ `a3dc548`
-- AI handover PR: `#11` — merged into the current profile branch
-- Default-branch handover PR: `#12` — merged into `main`
+- Application development line: `working/m02-profile-builder-v1.3-20260902`
+- Application development HEAD before this documentation-only branch: `be50dbdd3a9f957f159c2e453ed11d6a96db328e`
+- Documentation/control-plane working branch: `working/ai-control-plane-v1.1-20260903`
+- Control-plane branch is documentation-only and must NOT be treated as a replacement application branch.
 - Active product release: v0.2 Global Job Intelligence
 - Active milestone: M02 Profile Builder / Professional Identity reconciliation
 - Overall status: **IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING**
 
 ## What this session changed
 
-This session established a repository-native AI-to-AI handover/control layer without changing application runtime code or database migrations.
+A dedicated universal AI control plane was added so a new AI can take over from the GitHub repository without relying on the previous chat transcript.
 
-Added/updated:
+Added:
 
-- root `AI_TAKEOVER.md`
-- `AGENTS.md` handover priority/current sequence
-- `.github/copilot-instructions.md`
-- `CLAUDE.md`
-- `GEMINI.md`
-- `docs/AI_TAKEOVER/01_PROJECT_REQUIREMENTS_BASELINE.md`
-- `docs/AI_TAKEOVER/02_CURRENT_STATE_20260903.md`
-- `docs/AI_TAKEOVER/03_GIT_BRANCH_AND_RELEASE_CONTROL.md`
-- `docs/AI_TAKEOVER/04_SESSION_HANDOVER_TEMPLATE.md`
-- `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
+- `.ai/README.md` — control-plane entrypoint and source-of-truth hierarchy
+- `.ai/ROLE_MATRIX.md` — Product Architect, Application Architect, AI Engineering Lead, Frontend/UX Architect, QA/Release Reviewer, Git/Release Controller and Handover Agent roles
+- `.ai/AI_TAKEOVER_PROTOCOL.md` — mandatory takeover, engineering, verification and closeout workflow
+- `.ai/TAKEOVER_PROMPT.md` — copy/paste prompt for handing the repository to another AI
+
+No application runtime code, API route, database model or migration was intentionally changed by this control-plane work.
+
+## Current product priority
+
+Profile first:
+
+`Profile Builder → CV + Professional Document Vault → Profile Intelligence → Personas → Global Job Discovery → Email Intelligence → Company/Recruiter Intelligence → Job Intelligence/Matching → Skill Gap → Application Factory/CRM → Live Interview Assistant → Analytics/Learning → Global Mobility`
 
 ## Current top-priority validation areas
 
@@ -49,15 +49,15 @@ Added/updated:
 
 ## Known branch issue
 
-`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and was observed at 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
+`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and was previously observed at 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
 
 ## Known documentation issue
 
-`docs/PROJECT_TRACKER.md` currently names `working/m02-profile-repair-v1.2-20260902` as its current working branch even though the current profile branch is `working/m02-profile-builder-v1.3-20260902`. This is documentation drift and must be corrected as part of project-control maintenance.
+`docs/PROJECT_TRACKER.md` on the application line has previously named `working/m02-profile-repair-v1.2-20260902` as current while the actual profile line is `working/m02-profile-builder-v1.3-20260902`. Future agents must reconcile this before making release decisions.
 
 ## External prerequisites
 
-OAuth cannot be completed by source code alone. Google and LinkedIn provider applications must have valid client credentials and exact local callback registrations. Gmail mailbox access requires a separate Google authorization grant. No secrets belong in Git.
+OAuth cannot be completed by source code alone. Google and LinkedIn provider applications require valid credentials and exact callback registration. Gmail mailbox access is a separate Google authorization grant. No secrets belong in Git.
 
 ## Verification rule
 
@@ -65,14 +65,20 @@ No feature is `VERIFIED` until actual runtime evidence, relevant tests, regressi
 
 ## Exact next AI action
 
-Start with repository/branch reconciliation and inspect the current profile branch. Do not switch to the old live-interview branch. Complete M02 profile/evidence QA and documentation reconciliation first. Then prepare a separate controlled reconciliation milestone for Live Interview, followed by Opportunity / Global Job Discovery.
+1. Read the `.ai` control plane.
+2. Reconcile the active application branch against actual Git ancestry.
+3. Inspect the current profile implementation and runtime.
+4. Complete M02 profile/evidence QA and documentation reconciliation.
+5. Reconcile Live Interview onto the current profile line only after the profile foundation is stable.
+6. Then move to Opportunity / Global Job Discovery.
 
 ## Handover marker
 
 ```text
 [CAREEROS: AI HANDOVER — 2026-09-03]
-Current branch: working/m02-profile-builder-v1.3-20260902
-Current HEAD at documentation merge: 7a95882102ba41169b86708cb72dc0fca24e6aaf
-Status: IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING
-No VERIFIED claim issued.
+Application branch: working/m02-profile-builder-v1.3-20260902
+Application baseline: be50dbd
+Control-plane branch: working/ai-control-plane-v1.1-20260903
+Status: CONTROL PLANE IMPLEMENTED / APPLICATION RUNTIME E2E ACCEPTANCE PENDING
+No application feature marked VERIFIED by this documentation-only change.
 ```

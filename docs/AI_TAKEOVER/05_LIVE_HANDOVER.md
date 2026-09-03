@@ -6,15 +6,31 @@
 
 - Date: 2026-09-03
 - Current development line: `working/m02-profile-builder-v1.3-20260902`
-- Current implementation HEAD at snapshot start: `a3dc54842961362b708b8849ac2e7ec79feab4f0`
-- Safety checkpoint: `backup/pre-ai-handover-20260903`
+- Current HEAD after documentation merge: `7a95882102ba41169b86708cb72dc0fca24e6aaf`
+- Pre-documentation implementation checkpoint: `a3dc54842961362b708b8849ac2e7ec79feab4f0`
+- Safety checkpoint: `backup/pre-ai-handover-20260903` @ `a3dc548`
+- AI handover PR: `#11` — merged into the current profile branch
+- Default-branch handover PR: `#12` — merged into `main`
 - Active product release: v0.2 Global Job Intelligence
 - Active milestone: M02 Profile Builder / Professional Identity reconciliation
 - Overall status: **IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING**
 
-## What the current branch represents
+## What this session changed
 
-The profile branch is materially ahead of the v0.2 release baseline and contains the current reconciliation work for authentication, document ingestion, profile intelligence, profile UI, unified shell/navigation, project control pages and related fixes.
+This session established a repository-native AI-to-AI handover/control layer without changing application runtime code or database migrations.
+
+Added/updated:
+
+- root `AI_TAKEOVER.md`
+- `AGENTS.md` handover priority/current sequence
+- `.github/copilot-instructions.md`
+- `CLAUDE.md`
+- `GEMINI.md`
+- `docs/AI_TAKEOVER/01_PROJECT_REQUIREMENTS_BASELINE.md`
+- `docs/AI_TAKEOVER/02_CURRENT_STATE_20260903.md`
+- `docs/AI_TAKEOVER/03_GIT_BRANCH_AND_RELEASE_CONTROL.md`
+- `docs/AI_TAKEOVER/04_SESSION_HANDOVER_TEMPLATE.md`
+- `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
 
 ## Current top-priority validation areas
 
@@ -33,7 +49,7 @@ The profile branch is materially ahead of the v0.2 release baseline and contains
 
 ## Known branch issue
 
-`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and is 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
+`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and was observed at 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
 
 ## Known documentation issue
 
@@ -47,6 +63,16 @@ OAuth cannot be completed by source code alone. Google and LinkedIn provider app
 
 No feature is `VERIFIED` until actual runtime evidence, relevant tests, regression checks and QA review are recorded.
 
-## Next AI action
+## Exact next AI action
 
 Start with repository/branch reconciliation and inspect the current profile branch. Do not switch to the old live-interview branch. Complete M02 profile/evidence QA and documentation reconciliation first. Then prepare a separate controlled reconciliation milestone for Live Interview, followed by Opportunity / Global Job Discovery.
+
+## Handover marker
+
+```text
+[CAREEROS: AI HANDOVER — 2026-09-03]
+Current branch: working/m02-profile-builder-v1.3-20260902
+Current HEAD at documentation merge: 7a95882102ba41169b86708cb72dc0fca24e6aaf
+Status: IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING
+No VERIFIED claim issued.
+```

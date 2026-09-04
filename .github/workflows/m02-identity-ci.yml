@@ -3,10 +3,10 @@ name: CareerOS M02 Identity CI
 on:
   push:
     branches:
-      - 'working/m02-professional-identity-v1.5-20260904'
+      - 'working/m02-*'
   pull_request:
     branches:
-      - 'working/m02-professional-identity-v1.5-20260904'
+      - 'release/v0.2-global-job-intelligence'
 
 jobs:
   backend:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - run: python -m compileall -q app
+      - run: python -m compileall -q app scripts
       - run: pytest -q tests/test_identity_intelligence.py
 
   frontend:

@@ -10,11 +10,18 @@ import { useTheme, type CareerOSTheme } from '@/contexts/ThemeContext';
 type NavItem = readonly [string, string, string];
 type NavGroup = { id: string; title: string; items: NavItem[] };
 
+// Vertical navigation = product domains. Horizontal navigation = tools inside
+// the selected domain. This deliberately prevents the two bars becoming a
+// duplicate list of the same application routes.
 const groups: NavGroup[] = [
   { id: 'overview', title: 'Overview', items: [['Dashboard', '/', '⌂']] },
   { id: 'identity', title: 'Professional Identity', items: [
-    ['Profile', '/profile', '◎'], ['Profile Setup', '/onboarding', '◌'], ['Profile Intelligence', '/profile/intelligence', '✦'],
-    ['CV & Documents', '/documents', '▤'], ['Career Vault', '/career-vault', '◇'], ['Personas', '/personas', '◍']
+    ['Profile', '/profile', '◎'],
+    ['CV & Documents', '/documents', '▤'],
+    ['Profile Setup', '/onboarding', '◌'],
+    ['Evidence Library', '/evidence-library', '▥'],
+    ['Career Vault', '/career-vault', '◇'],
+    ['Personas', '/personas', '◍'],
   ] },
   { id: 'opportunity', title: 'Opportunity', items: [
     ['Jobs', '/jobs', '▣'], ['Applications', '/applications', '☷'], ['Application Studio', '/application-studio', '✦'],

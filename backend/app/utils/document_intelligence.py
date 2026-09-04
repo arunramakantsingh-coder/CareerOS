@@ -60,11 +60,11 @@ def classify_document(filename: str, text: str) -> dict[str, Any]:
     elif scores:
         best = max(scores, key=lambda k: scores[k])
     else:
-        # Filename can help a human reviewer understand why a low-confidence result was suggested,
-        # but does not raise an otherwise unknown document above the review threshold.
+        # Filename can help a human reviewer understand why an item may need review,
+        # but content without document-specific evidence remains canonically unknown.
         return {
             "category": "other",
-            "subcategory": "needs_review",
+            "subcategory": "unknown",
             "confidence": 0.25,
             "reason": "The content did not contain enough document-specific signals for a safe classification.",
         }

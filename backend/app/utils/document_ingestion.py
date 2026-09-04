@@ -8,6 +8,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
+from app.utils.document_intelligence import classify_document
+
 SUPPORTED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".rtf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".zip"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -92,11 +94,8 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
             import pytesseract
             image = Image.open(io.BytesIO(content))
             return pytesseract.image_to_string(image).strip(), {
-                **meta,
-                "method": "image_ocr",
-                "ocr_required": True,
-                "image_width": image.width,
-                "image_height": image.height,
+                **meta, "method": "image_ocr", "ocr_required": True,
+                "image_width": image.width, "image_height": image.height,
             }
         except Exception as exc:
             return "", {**meta, "method": "image_ocr_error", "ocr_required": True, "error": str(exc)}
@@ -104,9 +103,7 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
 
 
 def image_to_pdf(content: bytes) -> bytes:
-    """Create a derived PDF for an uploaded image while preserving the original image as evidence."""
     from PIL import Image
-
     image = Image.open(io.BytesIO(content))
     if getattr(image, "is_animated", False):
         image.seek(0)
@@ -124,80 +121,28 @@ def image_to_pdf(content: bytes) -> bytes:
     return output.getvalue()
 
 
-def build_markdown_record(
-    *,
-    document_id: str,
-    owner: str | None,
-    original_filename: str,
-    stored_filename: str,
-    content_hash: str,
-    classification: Dict[str, Any],
-    extraction_meta: Dict[str, Any],
-    extracted_text: str,
-    relative_path: str | None,
-    derived_pdf_path: str | None,
-) -> str:
-    """Create the human/audit readable sidecar record required by the evidence vault."""
+def build_markdown_record(*, document_id: str, owner: str | None, original_filename: str, stored_filename: str,
+                          content_hash: str, classification: Dict[str, Any], extraction_meta: Dict[str, Any],
+                          extracted_text: str, relative_path: str | None, derived_pdf_path: str | None) -> str:
     category = classification.get("category", "other")
     subtype = classification.get("subcategory", "unclassified")
     confidence = classification.get("confidence", 0)
     lines = [
-        f"# CareerOS Evidence Record — {original_filename}",
-        "",
-        "## Identity",
-        f"- Document ID: `{document_id}`",
-        f"- Owner: {owner or 'Unknown'}",
-        f"- Original filename: `{original_filename}`",
-        f"- Stored filename: `{stored_filename}`",
-        f"- Source relative path: `{relative_path or original_filename}`",
-        f"- SHA-256: `{content_hash}`",
-        "",
-        "## Classification",
-        f"- Category: **{category}**",
-        f"- Subtype: **{subtype}**",
-        f"- Confidence: **{confidence}**",
-        "",
-        "## Extraction",
-        f"- Method: `{extraction_meta.get('method', 'none')}`",
-        f"- OCR required: `{bool(extraction_meta.get('ocr_required'))}`",
-        f"- Page count: `{extraction_meta.get('page_count')}`",
+        f"# CareerOS Evidence Record — {original_filename}", "", "## Identity",
+        f"- Document ID: `{document_id}`", f"- Owner: {owner or 'Unknown'}",
+        f"- Original filename: `{original_filename}`", f"- Stored filename: `{stored_filename}`",
+        f"- Source relative path: `{relative_path or original_filename}`", f"- SHA-256: `{content_hash}`", "",
+        "## Classification", f"- Category: **{category}**", f"- Subtype: **{subtype}**", f"- Confidence: **{confidence}**", "",
+        "## Extraction", f"- Method: `{extraction_meta.get('method', 'none')}`",
+        f"- OCR required: `{bool(extraction_meta.get('ocr_required'))}`", f"- Page count: `{extraction_meta.get('page_count')}`",
     ]
     if extraction_meta.get("image_width") and extraction_meta.get("image_height"):
         lines.append(f"- Image dimensions: `{extraction_meta.get('image_width')} x {extraction_meta.get('image_height')}`")
     if derived_pdf_path:
         lines.extend(["", "## Derived Artifacts", f"- Normalized PDF: `{derived_pdf_path}`", "- Original evidence remains authoritative."])
-    lines.extend([
-        "",
-        "## Extracted Text",
-        "",
-        extracted_text[:100000] if extracted_text else "_No extractable text was produced._",
-        "",
-        "## Provenance",
-        "This Markdown file is a derived CareerOS index/audit artifact. The original uploaded document remains the authoritative evidence.",
-        "",
-    ])
+    lines.extend(["", "## Extracted Text", "", extracted_text[:100000] if extracted_text else "_No extractable text was produced._", "",
+                  "## Provenance", "This Markdown file is a derived CareerOS index/audit artifact. The original uploaded document remains the authoritative evidence.", ""])
     return "\n".join(lines)
-
-
-def classify_document(filename: str, text: str) -> Dict[str, Any]:
-    haystack = f"{filename}\n{text}".lower()
-    rules = [
-        ("certification", "certificate", ["certification", "certificate", "credential id", "certified"]),
-        ("education", "degree", ["degree", "university", "college", "transcript", "bachelor", "master", "bba", "mba"]),
-        ("employment", "offer_letter", ["offer letter", "appointment letter", "employment offer"]),
-        ("employment", "experience_letter", ["experience letter", "employment certificate", "worked with"]),
-        ("employment", "relieving_letter", ["relieving letter", "relieved from"]),
-        ("employment", "payslip", ["payslip", "salary slip", "pay slip", "gross salary"]),
-        ("achievement", "award", ["award", "recognition", "employee of the month", "appreciation"]),
-        ("project", "project", ["project summary", "project completion", "statement of work"]),
-        ("cv", "resume", ["resume", "curriculum vitae", "professional summary", "work experience", "skills"]),
-        ("identity", "identity", ["passport", "date of birth", "nationality", "driving licence", "driving license"]),
-    ]
-    for category, subtype, terms in rules:
-        hits = sum(1 for term in terms if term in haystack)
-        if hits:
-            return {"category": category, "subcategory": subtype, "confidence": round(min(0.55 + hits * 0.12, 0.99), 2)}
-    return {"category": "other", "subcategory": "unclassified", "confidence": 0.25}
 
 
 def canonical_filename(owner: str | None, classification: Dict[str, Any], issuer: str | None, original: str) -> str:

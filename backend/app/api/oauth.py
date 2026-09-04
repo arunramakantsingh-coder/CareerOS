@@ -41,7 +41,17 @@ def frontend_origin(request: Request) -> str:
 
 
 def callback_uri(request: Request, provider: str) -> str:
-    return f"{request.url.scheme}://{request.url.netloc}/api/v1/auth/oauth/{provider}/callback"
+    """Return the OAuth callback registered with the provider.
+
+    OAuth redirect URIs must be stable and match the Google/LinkedIn client configuration
+    exactly. Do not derive them from the inbound Host header because localhost aliases,
+    reverse proxies and forwarded hosts can otherwise create a different redirect_uri.
+    """
+    if provider == "google":
+        return settings.GOOGLE_OAUTH_REDIRECT_URI.rstrip("/")
+    if provider == "linkedin":
+        return settings.LINKEDIN_OAUTH_REDIRECT_URI.rstrip("/")
+    raise ValueError(f"Unsupported OAuth provider: {provider}")
 
 
 def state_token(provider: str, action: str, request: Request, user_id: str | None = None) -> str:

@@ -22,8 +22,10 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/oauth/google/callback"
     LINKEDIN_CLIENT_ID: str = ""
     LINKEDIN_CLIENT_SECRET: str = ""
+    LINKEDIN_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/oauth/linkedin/callback"
     FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     # Centralized bootstrap allow-list for local development. Production should use role=developer/admin.

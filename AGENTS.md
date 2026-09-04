@@ -1,5 +1,30 @@
 # CareerOS AI Development Rules
 
+## CURRENT HANDOVER OVERRIDE — READ FIRST
+
+Before using the older control-plane sections below, read `AI_TAKEOVER.md` and `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`. They capture the current repository state and current milestone. Historical documentation must not be used to overwrite newer Git/runtime facts.
+
+Current development line: `working/m02-profile-builder-v1.3-20260902` @ `a3dc548`.
+
+Current milestone: **M02 Profile Builder / Professional Identity reconciliation**.
+
+Current sequence: Profile Builder → CV + Professional Document Vault → Profile Intelligence → Personas → Global Job Discovery → Email Intelligence → Company/Recruiter Intelligence → Job Intelligence/Matching → Skill Gap → Application Factory/CRM → Live Interview Assistant → Analytics/Learning → Global Mobility.
+
+Important: `working/live-interview-workspace-v0.2.2-20260902` is a diverged legacy working line, 16 commits behind and 1 commit ahead of the current profile branch, with merge base `9bd4d80`. Do not treat it as the current continuation without explicit reconciliation.
+
+Safety checkpoint created before this handover documentation: `backup/pre-ai-handover-20260903` @ `a3dc548`.
+
+For the complete requirements and branch analysis, read:
+
+- `AI_TAKEOVER.md`
+- `docs/AI_TAKEOVER/01_PROJECT_REQUIREMENTS_BASELINE.md`
+- `docs/AI_TAKEOVER/02_CURRENT_STATE_20260903.md`
+- `docs/AI_TAKEOVER/03_GIT_BRANCH_AND_RELEASE_CONTROL.md`
+- `docs/AI_TAKEOVER/04_SESSION_HANDOVER_TEMPLATE.md`
+- `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
+
+---
+
 ## 1. Purpose
 
 CareerOS is an AI-powered Global Career Operating System.
@@ -13,25 +38,27 @@ The documentation set is the project's control plane. Source code is the impleme
 Before any architectural or coding change, read:
 
 1. `AGENTS.md`
-2. `docs/CAREEROS_SPEC.md`
-3. `docs/CAREEROS_BLUEPRINT.md`
-4. `docs/CAREEROS_VERSION_ARCHITECTURE.md`
-5. `docs/CAREEROS_PROJECT_ASSESSMENT.md`
-6. `docs/DEVELOPMENT_ROADMAP.md`
-7. `docs/CAREEROS_DEVELOPMENT_WORKFLOW.md`
-8. `docs/CAREEROS_PROJECT_STATUS.md`
+2. `AI_TAKEOVER.md`
+3. `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
+4. `docs/CAREEROS_SPEC.md`
+5. `docs/CAREEROS_BLUEPRINT.md`
+6. `docs/CAREEROS_VERSION_ARCHITECTURE.md`
+7. `docs/CAREEROS_PROJECT_ASSESSMENT.md`
+8. `docs/DEVELOPMENT_ROADMAP.md`
+9. `docs/CAREEROS_DEVELOPMENT_WORKFLOW.md`
+10. `docs/CAREEROS_PROJECT_STATUS.md`
+11. `docs/21_AI_TO_AI_COORDINATION_PROTOCOL.md`
+12. `docs/22_CAREEROS_CURRENT_CONTROL_STATE.md`
+13. `docs/23_CAREEROS_MODULE_VERSION_REGISTRY.md`
 
 Source-of-truth precedence:
 
 1. Current repository implementation — authoritative for what currently exists.
-2. `AGENTS.md` — mandatory engineering, security and workflow rules.
-3. `CAREEROS_SPEC.md` — intended functional requirements.
-4. `CAREEROS_BLUEPRINT.md` — intended product/architecture direction.
-5. `CAREEROS_VERSION_ARCHITECTURE.md` — canonical version/module allocation and long-term evolution.
-6. `CAREEROS_PROJECT_ASSESSMENT.md` — assessed implementation gaps and risks.
-7. `DEVELOPMENT_ROADMAP.md` — delivery sequence.
-8. `CAREEROS_DEVELOPMENT_WORKFLOW.md` — collaboration procedure.
-9. `CAREEROS_PROJECT_STATUS.md` — living current-state record.
+2. Current runtime evidence — authoritative for what actually runs.
+3. `AI_TAKEOVER.md` and current handover state — authoritative for the current cross-session context.
+4. `AGENTS.md` — mandatory engineering, security and workflow rules.
+5. Current product/spec/blueprint documents — intended functional and architectural behavior.
+6. Historical assessments and old status documents — risk/history context only.
 
 When existing implementation differs from intended behavior, do not silently rewrite architecture. Identify the difference, choose the smallest safe change, and document material decisions.
 
@@ -40,16 +67,16 @@ When existing implementation differs from intended behavior, do not silently rew
 ```text
 CareerOS
    |
-   +-- v0.1 Personal Job & Interview Copilot   <- NOW
+   +-- v0.1 Personal Job & Interview Copilot   <- FROZEN
    |
-   +-- v0.2 Global Job Intelligence
+   +-- v0.2 Global Job Intelligence            <- CURRENT RELEASE LINE
    |
    +-- v0.3 Global Mobility
    |
    +-- v1/v2 SaaS
 ```
 
-v0.1 must become useful to its first real user before commercialization is prioritized.
+Current v0.2 delivery is profile-first. Do not skip the profile/evidence foundation to work on later modules.
 
 ## 4. Core Principle
 
@@ -180,7 +207,7 @@ Use provider abstraction, caching, selective evidence retrieval and AI usage/cos
 
 Use the existing Next.js/TypeScript/Tailwind direction unless a documented reason requires change.
 
-The Web GUI is a v0.1 deliverable.
+The Web GUI is a v0.1 deliverable and continues as the v0.2 shell.
 
 Lovable material is design reference, not production source.
 
@@ -189,7 +216,7 @@ Lovable material is design reference, not production source.
 When DeepSeek is used as coding engineer:
 
 1. Read the current GitHub branch/repository first.
-2. Read `AGENTS.md`.
+2. Read `AGENTS.md` and `AI_TAKEOVER.md`.
 3. Read all relevant project MD files, including the version architecture.
 4. Inspect existing implementation before changing a subsystem.
 5. Follow project rules even when a shortcut appears easier.
@@ -207,7 +234,7 @@ DeepSeek must produce one complete PowerShell script starting at the project roo
 Expected starting location:
 
 ```powershell
-PS C:\Projects\CareerOS>
+PS C:\Projects\v0.2-global-job-intelligence>
 ```
 
 The script exists to reduce human error, accelerate implementation and make each task reproducible.
@@ -222,7 +249,7 @@ CHATGPT
   |
   | Task specification
   v
-DEEPSEEK
+DEEPSEEK / OTHER CODING AI
   |
   | Reads current GitHub + MD files
   v
@@ -236,14 +263,14 @@ Local implementation + tests
 GitHub branch / PR
   |
   v
-CHATGPT reads actual repository + diff
+CHATGPT / QA REVIEW
   |
   +--> APPROVE --> Merge
   |
   +--> CHANGES REQUIRED
           |
           v
-       DEEPSEEK fixes
+       Developer fixes
           |
           v
        Tests
@@ -267,10 +294,12 @@ The reviewer must inspect the actual GitHub branch/PR/current repository and com
 The MD files are part of the product control plane.
 
 After every material milestone:
+- update `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
 - update `CAREEROS_PROJECT_STATUS.md`
 - update `DEVELOPMENT_ROADMAP.md` if sequencing changes
 - update `CAREEROS_PROJECT_ASSESSMENT.md` when assessed status changes
 - update SPEC/BLUEPRINT/VERSION_ARCHITECTURE when intended product/architecture changes
+- update the module/version registry with the new module version and evidence
 
 Never leave a material architectural decision only in chat.
 
@@ -296,9 +325,9 @@ Do not merge a PR without human approval.
 
 A task is complete only when implementation exists, relevant tests/builds actually pass, the app still starts where applicable, no known critical regression remains, GitHub reflects the change, and documentation reflects the new state.
 
-## Repository Synchronization Rule
+## 23. Repository Synchronization Rule
 
-GitHub `main` is the canonical verified baseline for the project.
+GitHub is the canonical repository source. The active branch for a milestone is the branch explicitly named in the current handover record, not necessarily `main`.
 
 Before every milestone or repository review:
 
@@ -306,9 +335,10 @@ Before every milestone or repository review:
 1. git fetch --all --prune
 2. Identify current branch
 3. Identify local HEAD commit
-4. Identify origin/main commit
+4. Identify intended remote baseline
 5. Check working-tree status
 6. Check branch tracking / ahead-behind state
+7. Compare branch ancestry when multiple working lines exist
 ```
 
 Classify the repository as:
@@ -323,9 +353,9 @@ DIRTY
 
 Never assume the local project and GitHub are identical.
 
-ChatGPT and DeepSeek must review the actual branch and commit associated with the milestone.
+ChatGPT and other agents must review the actual branch and commit associated with the milestone.
 
-## Troubleshooting Baseline Rule
+## 24. Troubleshooting Baseline Rule
 
 When testing or runtime troubleshooting reports a problem, establish:
 
@@ -346,3 +376,23 @@ configuration
 ```
 
 Only then attribute a defect to application source code.
+
+## 25. Cross-Agent Handover Rule
+
+If an AI session ends for any reason, the next AI must be able to continue from GitHub alone.
+
+Before stopping, update `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md` with:
+
+- exact branch and commit;
+- milestone/module/version;
+- what changed;
+- files and migrations;
+- tests actually executed;
+- runtime evidence;
+- known bugs;
+- blockers/external dependencies;
+- material decisions;
+- what remains incomplete;
+- one exact next action.
+
+A blocker is not a failure of the handover. Hiding a blocker is.

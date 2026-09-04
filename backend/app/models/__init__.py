@@ -1,4 +1,4 @@
-﻿"""Models package."""
+"""Models package."""
 from app.models.base import Base, TimestampMixin
 from app.models.user import User
 from app.models.tenant import Tenant
@@ -14,6 +14,7 @@ from app.models.career_evidence import CareerEvidence
 from app.models.career_preference import CareerPreference
 from app.models.persona import Persona
 from app.models.persona_skill_weight import PersonaSkillWeight
+from app.models.persona_suggestion import PersonaSuggestion
 from app.models.job import Job
 from app.models.job_dna import JobDNA
 from app.models.job_skill import JobSkill
@@ -37,54 +38,19 @@ from app.models.occupation_mapping import OccupationMapping
 from app.models.migration_pathway import MigrationPathway
 from app.models.migration_profile import MigrationProfile
 from app.models.skill_gap import SkillGapObservation, SkillGapAggregate
+from app.models.career_fact_evidence import CareerFactEvidence
+from app.models.email_connector_account import EmailConnectorAccount
 
-__all__ = [
-    "Base",
-    "TimestampMixin",
-    "User",
-    "Tenant",
-    "CareerProfile",
-    "Employment",
-    "Project",
-    "Skill",
-    "Certification",
-    "Education",
-    "Achievement",
-    "Technology",
-    "CareerEvidence",
-    "CareerPreference",
-    "Persona",
-    "PersonaSkillWeight",
-    "Job",
-    "JobDNA",
-    "JobSkill",
-    "JobResponsibility",
-    "CapabilityTaxonomy",
-    "Match",
-    "MatchDimension",
-    "MatchRecommendation",
-    "ResumeVersion",
-    "ResumeSection",
-    "ResumeEvidenceLink",
-    "JobSource",
-    "JobSourceConnection",
-    "JobListing",
-    "JobDiscovery",
-    "RemoteEligibility",
-    "Country",
-    "Visa",
-    "MigrationRule",
-    "OccupationMapping",
-    "MigrationPathway",
-    "MigrationProfile",
-    "SkillGapObservation",
-    "SkillGapAggregate",
-    "Application",
-    "CompanyIntelligence",
-    "Interview",
-    "TruthCheck",
-    "AuditLog",
-    "LiveInterviewSession",
-]
 from app.models.v01_product import Application, CompanyIntelligence, Interview, TruthCheck, AuditLog, LiveInterviewSession
 
+__all__ = [
+    "Base", "TimestampMixin", "User", "Tenant", "CareerProfile", "Employment", "Project", "Skill",
+    "Certification", "Education", "Achievement", "Technology", "CareerEvidence", "CareerPreference",
+    "Persona", "PersonaSkillWeight", "PersonaSuggestion", "CareerFactEvidence", "EmailConnectorAccount",
+    "Job", "JobDNA", "JobSkill", "JobResponsibility", "CapabilityTaxonomy", "Match", "MatchDimension",
+    "MatchRecommendation", "ResumeVersion", "ResumeSection", "ResumeEvidenceLink", "JobSource",
+    "JobSourceConnection", "JobListing", "JobDiscovery", "RemoteEligibility", "Country", "Visa",
+    "MigrationRule", "OccupationMapping", "MigrationPathway", "MigrationProfile", "SkillGapObservation",
+    "SkillGapAggregate", "Application", "CompanyIntelligence", "Interview", "TruthCheck", "AuditLog",
+    "LiveInterviewSession",
+]

@@ -1,7 +1,8 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
+import json
 
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password, get_current_user
@@ -26,25 +27,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user."""
-    
-    # Check if email exists
     existing = db.query(User).filter(User.email == request.email).first()
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Create tenant
-    tenant = Tenant(
-        name=request.tenant_name or "default",
-        plan="free",
-        status="active"
-    )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    tenant = Tenant(name=request.tenant_name or "default", plan="free", status="active")
     db.add(tenant)
     db.flush()
-    
-    # Create user
+
     user = User(
         email=request.email,
         name=request.name,
@@ -55,7 +45,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    
+
     return RegisterResponse(
         id=user.id,
         tenant_id=tenant.id,
@@ -72,31 +62,15 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Login and receive access token."""
-    
-    # Find user
     user = db.query(User).filter(User.email == request.email).first()
     if not user or not user.password_hash:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-    
-    # Verify password
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     if not verify_password(request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-    
-    # Create token
-    access_token = create_access_token(
-        data={"sub": str(user.id), "tenant_id": str(user.tenant_id)}
-    )
-    
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer"
-    )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    access_token = create_access_token(data={"sub": str(user.id), "tenant_id": str(user.tenant_id)})
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
 
 # ============================================
@@ -110,16 +84,13 @@ def register_external_identity(
     db: Session = Depends(get_db)
 ):
     """Register an external identity (OAuth)."""
-    
-    # Check if identity already exists
     existing = db.query(ExternalIdentity).filter(
         ExternalIdentity.provider == request.provider,
         ExternalIdentity.provider_user_id == request.provider_user_id,
         ExternalIdentity.user_id == current_user.id
     ).first()
-    
+
     if existing:
-        # Update existing
         existing.provider_email = request.provider_email
         existing.access_token = request.access_token
         existing.refresh_token = request.refresh_token
@@ -129,8 +100,7 @@ def register_external_identity(
         db.commit()
         db.refresh(existing)
         return existing
-    
-    # Create new
+
     identity = ExternalIdentity(
         user_id=current_user.id,
         provider=request.provider,
@@ -145,7 +115,6 @@ def register_external_identity(
     db.add(identity)
     db.commit()
     db.refresh(identity)
-    
     return identity
 
 
@@ -155,11 +124,10 @@ def list_external_identities(
     db: Session = Depends(get_db)
 ):
     """List external identities for the current user."""
-    identities = db.query(ExternalIdentity).filter(
+    return db.query(ExternalIdentity).filter(
         ExternalIdentity.user_id == current_user.id,
         ExternalIdentity.is_active == True
     ).all()
-    return identities
 
 
 @router.delete("/external/{identity_id}")
@@ -173,16 +141,11 @@ def remove_external_identity(
         ExternalIdentity.id == identity_id,
         ExternalIdentity.user_id == current_user.id
     ).first()
-    
     if not identity:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="External identity not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="External identity not found")
+
     identity.is_active = False
     db.commit()
-    
     return {"message": "External identity removed"}
 
 
@@ -209,7 +172,7 @@ def update_me(
         current_user.locale = request.locale
     if request.timezone is not None:
         current_user.timezone = request.timezone
-    
+
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -226,10 +189,10 @@ def set_consent(
     db: Session = Depends(get_db)
 ):
     """Set user consent flags."""
-    current_user.consent_flags = str(request.consent_flags)
+    current_user.consent_flags = json.dumps(request.consent_flags, sort_keys=True)
     db.commit()
     db.refresh(current_user)
-    
+
     return ConsentResponse(
         consent_flags=request.consent_flags,
         consent_version=request.consent_version,
@@ -246,10 +209,12 @@ def get_consent(
     consent_flags = {}
     if current_user.consent_flags:
         try:
-            consent_flags = eval(current_user.consent_flags)
-        except:
-            pass
-    
+            parsed = json.loads(current_user.consent_flags)
+            if isinstance(parsed, dict):
+                consent_flags = parsed
+        except (TypeError, ValueError, json.JSONDecodeError):
+            consent_flags = {}
+
     return ConsentResponse(
         consent_flags=consent_flags,
         consent_version="1.0",

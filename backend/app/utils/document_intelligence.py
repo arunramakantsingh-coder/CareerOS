@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 DOCUMENT_RULES: list[tuple[str, str, tuple[str, ...], float]] = [
     ("cv", "resume", ("curriculum vitae", "professional summary", "work experience", "employment history", "core competencies"), 0.30),
     ("certification", "professional_certification", ("certification", "certified", "credential id", "credential number", "certificate of", "certification number"), 0.34),
@@ -30,12 +29,12 @@ def classify_document(filename: str, text: str) -> dict[str, Any]:
     """Classify by content. Filename is only a weak tie-breaker and never sufficient by itself."""
     body = _clean_text(text)
     filename_hint = _clean_text(filename)
-    if not body:
+    if not body or body in {"scanned page with no readable text", "no readable text", "unreadable scan"}:
         return {
             "category": "other",
             "subcategory": "unknown",
             "confidence": 0.0,
-            "reason": "No readable text was available; document requires review.",
+            "reason": "No readable document content was available; document requires review or OCR.",
         }
 
     scores: dict[tuple[str, str], float] = {}
@@ -47,21 +46,17 @@ def classify_document(filename: str, text: str) -> dict[str, Any]:
             scores[key] = scores.get(key, 0.0) + min(len(matched), 4) * weight
             hits.setdefault(key, []).extend(matched[:4])
 
-    # A CV is defined by multiple career sections, not the presence of a single word.
     cv_sections = sum(term in body for term in ("experience", "education", "skills", "certifications", "projects", "professional summary"))
     if cv_sections >= 3:
         scores[("cv", "resume")] = max(scores.get(("cv", "resume"), 0.0), 0.92)
         hits.setdefault(("cv", "resume"), []).append(f"{cv_sections} career sections detected")
 
-    # Strong document semantics override weaker generic signals.
     strong = [key for key, score in scores.items() if score >= 0.68]
     if strong:
         best = max(strong, key=lambda k: scores[k])
     elif scores:
         best = max(scores, key=lambda k: scores[k])
     else:
-        # Filename can help a human reviewer understand why a low-confidence result was suggested,
-        # but does not raise an otherwise unknown document above the review threshold.
         return {
             "category": "other",
             "subcategory": "needs_review",
@@ -75,7 +70,6 @@ def classify_document(filename: str, text: str) -> dict[str, Any]:
     if filename_hint and any(token in filename_hint for token in ("cv", "resume", "certificate", "degree", "transcript")):
         reason += ". Filename was treated only as a supporting hint."
     return {"category": best[0], "subcategory": best[1], "confidence": confidence, "reason": reason}
-
 
 SECTION_ALIASES: dict[str, set[str]] = {
     "summary": {"summary", "professional summary", "profile", "professional profile", "about me", "career summary"},

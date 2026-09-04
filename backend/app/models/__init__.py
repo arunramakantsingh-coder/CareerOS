@@ -15,6 +15,16 @@ from app.models.career_preference import CareerPreference
 from app.models.persona import Persona
 from app.models.persona_skill_weight import PersonaSkillWeight
 from app.models.persona_suggestion import PersonaSuggestion
+from app.models.career_fact_evidence import CareerFactEvidence
+from app.models.email_connector_account import EmailConnectorAccount
+from app.models.candidate_profile import CandidateProfile
+from app.models.document import Document
+from app.models.extraction_result import ExtractionResult
+from app.models.extraction_field import ExtractionField
+from app.models.professional_experience import ProfessionalExperience
+from app.models.candidate_skill import CandidateSkill
+from app.models.candidate_certification import CandidateCertification
+from app.models.candidate_education import CandidateEducation
 from app.models.job import Job
 from app.models.job_dna import JobDNA
 from app.models.job_skill import JobSkill
@@ -38,8 +48,6 @@ from app.models.occupation_mapping import OccupationMapping
 from app.models.migration_pathway import MigrationPathway
 from app.models.migration_profile import MigrationProfile
 from app.models.skill_gap import SkillGapObservation, SkillGapAggregate
-from app.models.career_fact_evidence import CareerFactEvidence
-from app.models.email_connector_account import EmailConnectorAccount
 
 from app.models.v01_product import Application, CompanyIntelligence, Interview, TruthCheck, AuditLog, LiveInterviewSession
 
@@ -47,10 +55,11 @@ __all__ = [
     "Base", "TimestampMixin", "User", "Tenant", "CareerProfile", "Employment", "Project", "Skill",
     "Certification", "Education", "Achievement", "Technology", "CareerEvidence", "CareerPreference",
     "Persona", "PersonaSkillWeight", "PersonaSuggestion", "CareerFactEvidence", "EmailConnectorAccount",
-    "Job", "JobDNA", "JobSkill", "JobResponsibility", "CapabilityTaxonomy", "Match", "MatchDimension",
-    "MatchRecommendation", "ResumeVersion", "ResumeSection", "ResumeEvidenceLink", "JobSource",
-    "JobSourceConnection", "JobListing", "JobDiscovery", "RemoteEligibility", "Country", "Visa",
-    "MigrationRule", "OccupationMapping", "MigrationPathway", "MigrationProfile", "SkillGapObservation",
-    "SkillGapAggregate", "Application", "CompanyIntelligence", "Interview", "TruthCheck", "AuditLog",
-    "LiveInterviewSession",
+    "CandidateProfile", "Document", "ExtractionResult", "ExtractionField", "ProfessionalExperience",
+    "CandidateSkill", "CandidateCertification", "CandidateEducation", "Job", "JobDNA", "JobSkill",
+    "JobResponsibility", "CapabilityTaxonomy", "Match", "MatchDimension", "MatchRecommendation",
+    "ResumeVersion", "ResumeSection", "ResumeEvidenceLink", "JobSource", "JobSourceConnection", "JobListing",
+    "JobDiscovery", "RemoteEligibility", "Country", "Visa", "MigrationRule", "OccupationMapping",
+    "MigrationPathway", "MigrationProfile", "SkillGapObservation", "SkillGapAggregate", "Application",
+    "CompanyIntelligence", "Interview", "TruthCheck", "AuditLog", "LiveInterviewSession",
 ]

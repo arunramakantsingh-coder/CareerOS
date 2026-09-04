@@ -1,16 +1,17 @@
-﻿from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 from datetime import datetime
-from enum import Enum
+from pydantic import BaseModel
 
-class ExtractionStatus(str, Enum):
+
+class ExtractionStatus(str):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETE = "complete"
     FAILED = "failed"
 
-class DocumentCategory(str, Enum):
+
+class DocumentCategory(str):
     CV = "cv"
     EMPLOYMENT = "employment"
     CERTIFICATION = "certification"
@@ -18,6 +19,7 @@ class DocumentCategory(str, Enum):
     PROJECT = "project"
     ACHIEVEMENT = "achievement"
     OTHER = "other"
+
 
 class CandidateProfileBase(BaseModel):
     full_name: Optional[str] = None
@@ -33,19 +35,28 @@ class CandidateProfileBase(BaseModel):
     industries: Optional[List[str]] = None
     seniority: Optional[str] = None
 
+
 class CandidateProfileCreate(CandidateProfileBase):
     user_id: UUID
+
+
 class CandidateProfileUpdate(CandidateProfileBase):
     pass
+
+
 class CandidateProfileResponse(CandidateProfileBase):
     id: UUID
     user_id: UUID
-    completeness_score: Optional[float]
-    completeness_breakdown: Optional[Dict[str, Any]]
-    reconciliation_status: str
-    is_active: bool
+    completeness_score: Optional[float] = None
+    completeness_breakdown: Optional[Dict[str, Any]] = None
+    reconciliation_status: Optional[str] = None
+    is_active: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
 
 class ProfessionalExperienceBase(BaseModel):
     company: str
@@ -58,17 +69,27 @@ class ProfessionalExperienceBase(BaseModel):
     achievements: Optional[List[str]] = None
     industry: Optional[str] = None
     company_size: Optional[str] = None
+
+
 class ProfessionalExperienceCreate(ProfessionalExperienceBase):
     candidate_id: UUID
+
+
 class ProfessionalExperienceUpdate(ProfessionalExperienceBase):
     pass
+
+
 class ProfessionalExperienceResponse(ProfessionalExperienceBase):
     id: UUID
     candidate_id: UUID
-    is_reconciled: bool
-    reconciliation_status: Optional[str]
+    is_reconciled: Optional[bool] = None
+    reconciliation_status: Optional[str] = None
+    confidence: Optional[float] = None
+    source_type: Optional[str] = None
+    source_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+
 
 class CandidateSkillBase(BaseModel):
     name: str
@@ -76,16 +97,23 @@ class CandidateSkillBase(BaseModel):
     proficiency: Optional[str] = None
     years_experience: Optional[float] = None
     last_used: Optional[str] = None
+
+
 class CandidateSkillCreate(CandidateSkillBase):
     candidate_id: UUID
+
+
 class CandidateSkillUpdate(CandidateSkillBase):
     pass
+
+
 class CandidateSkillResponse(CandidateSkillBase):
     id: UUID
     candidate_id: UUID
-    confidence: Optional[float]
+    confidence: Optional[float] = None
     created_at: datetime
     updated_at: datetime
+
 
 class CandidateCertificationBase(BaseModel):
     name: str
@@ -94,16 +122,23 @@ class CandidateCertificationBase(BaseModel):
     expiry_date: Optional[datetime] = None
     credential_reference: Optional[str] = None
     credential_url: Optional[str] = None
+
+
 class CandidateCertificationCreate(CandidateCertificationBase):
     candidate_id: UUID
+
+
 class CandidateCertificationUpdate(CandidateCertificationBase):
     pass
+
+
 class CandidateCertificationResponse(CandidateCertificationBase):
     id: UUID
     candidate_id: UUID
-    confidence: Optional[float]
+    confidence: Optional[float] = None
     created_at: datetime
     updated_at: datetime
+
 
 class CandidateEducationBase(BaseModel):
     institution: str
@@ -113,16 +148,23 @@ class CandidateEducationBase(BaseModel):
     end_date: Optional[datetime] = None
     is_current: bool = False
     grade: Optional[str] = None
+
+
 class CandidateEducationCreate(CandidateEducationBase):
     candidate_id: UUID
+
+
 class CandidateEducationUpdate(CandidateEducationBase):
     pass
+
+
 class CandidateEducationResponse(CandidateEducationBase):
     id: UUID
     candidate_id: UUID
-    confidence: Optional[float]
+    confidence: Optional[float] = None
     created_at: datetime
     updated_at: datetime
+
 
 class DocumentBase(BaseModel):
     filename: str
@@ -132,16 +174,25 @@ class DocumentBase(BaseModel):
     mime_type: Optional[str] = None
     document_category: Optional[str] = None
     document_subcategory: Optional[str] = None
+
+
 class DocumentCreate(DocumentBase):
     candidate_id: UUID
     storage_path: str
+
+
 class DocumentResponse(DocumentBase):
     id: UUID
     candidate_id: UUID
-    storage_url: Optional[str]
+    storage_url: Optional[str] = None
     status: str
     extraction_status: str
+    user_label: Optional[str] = None
+    detected_type: Optional[str] = None
     classification_confidence: Optional[float] = None
+    classification_reason: Optional[str] = None
+    verification_status: Optional[str] = None
+    processing_stage: Optional[str] = None
     content_hash: Optional[str] = None
     issuer: Optional[str] = None
     issue_date: Optional[datetime] = None
@@ -154,11 +205,14 @@ class DocumentResponse(DocumentBase):
     source_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
+
+
 class DocumentUploadRequest(BaseModel):
     filename: str
     content: str
     document_category: Optional[str] = None
     document_subcategory: Optional[str] = None
+
 
 class ProfileCompletenessResponse(BaseModel):
     overall_score: float

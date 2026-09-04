@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import DocumentUpload from "@/components/documents/DocumentUpload";
 import DocumentBulkUpload from "@/components/documents/DocumentBulkUpload";
 import { apiClient } from "@/lib/api/client";

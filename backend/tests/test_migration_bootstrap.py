@@ -15,6 +15,17 @@ class FakeInspector:
         return [{"name": name} for name in self._columns.get(table, set())]
 
 
+class FakeConnection:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def execute(self, statement):
+        return None
+
+
 M02_TABLES = {
     "external_identities",
     "candidate_profiles",
@@ -77,6 +88,7 @@ def test_unknown_legacy_schema_fails_closed(monkeypatch):
 
 def test_empty_database_uses_upgrade_head(monkeypatch):
     calls = []
+    monkeypatch.setattr(migrations, "engine", SimpleNamespace(connect=lambda: FakeConnection()))
     monkeypatch.setattr(migrations, "_has_version_table", lambda: False)
     monkeypatch.setattr(migrations, "inspect", lambda engine: FakeInspector(set(), {}))
     monkeypatch.setattr(migrations, "_alembic_config", lambda: SimpleNamespace())

@@ -29,6 +29,7 @@ from app.utils.document_ingestion import (
     sha256_bytes,
 )
 from app.utils.extraction_service import ExtractionService
+from app.utils.vault_index import update_master_index
 
 router = APIRouter(prefix="/documents", tags=["document-intake"])
 extraction_service = ExtractionService()
@@ -191,9 +192,28 @@ def persist_document(
         ),
         encoding="utf-8",
     )
+
+    master_index_path = update_master_index(
+        storage_root=STORAGE_ROOT,
+        profile_id=str(profile.id),
+        document_id=str(document.id),
+        owner=profile.full_name,
+        original_filename=original,
+        stored_filename=filename_for_vault,
+        category=classification["category"],
+        subtype=classification["subcategory"],
+        confidence=classification["confidence"],
+        content_hash=content_hash,
+        storage_path=str(storage_path),
+        metadata_markdown_path=str(metadata_path),
+        derived_pdf_path=str(derived_pdf_path) if derived_pdf_path else None,
+        source_metadata=source_metadata,
+    )
+
     document.source_metadata = {
         **source_metadata,
         "metadata_markdown_path": str(metadata_path),
+        "master_index_path": master_index_path,
     }
     db.commit()
     db.refresh(document)
@@ -327,6 +347,7 @@ async def batch_upload(
             "status": document.status,
             "extraction_status": document.extraction_status,
             "metadata_markdown": (document.source_metadata or {}).get("metadata_markdown_path"),
+            "master_index": (document.source_metadata or {}).get("master_index_path"),
             "derived_pdf": (document.source_metadata or {}).get("derived_pdf_path"),
         })
 

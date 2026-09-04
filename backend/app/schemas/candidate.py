@@ -4,13 +4,11 @@ from uuid import UUID
 from datetime import datetime
 from enum import Enum
 
-
 class ExtractionStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETE = "complete"
     FAILED = "failed"
-
 
 class DocumentCategory(str, Enum):
     CV = "cv"
@@ -20,7 +18,6 @@ class DocumentCategory(str, Enum):
     PROJECT = "project"
     ACHIEVEMENT = "achievement"
     OTHER = "other"
-
 
 class CandidateProfileBase(BaseModel):
     full_name: Optional[str] = None
@@ -36,15 +33,10 @@ class CandidateProfileBase(BaseModel):
     industries: Optional[List[str]] = None
     seniority: Optional[str] = None
 
-
 class CandidateProfileCreate(CandidateProfileBase):
     user_id: UUID
-
-
 class CandidateProfileUpdate(CandidateProfileBase):
     pass
-
-
 class CandidateProfileResponse(CandidateProfileBase):
     id: UUID
     user_id: UUID
@@ -54,7 +46,6 @@ class CandidateProfileResponse(CandidateProfileBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
 
 class ProfessionalExperienceBase(BaseModel):
     company: str
@@ -67,16 +58,10 @@ class ProfessionalExperienceBase(BaseModel):
     achievements: Optional[List[str]] = None
     industry: Optional[str] = None
     company_size: Optional[str] = None
-
-
 class ProfessionalExperienceCreate(ProfessionalExperienceBase):
     candidate_id: UUID
-
-
 class ProfessionalExperienceUpdate(ProfessionalExperienceBase):
     pass
-
-
 class ProfessionalExperienceResponse(ProfessionalExperienceBase):
     id: UUID
     candidate_id: UUID
@@ -85,30 +70,22 @@ class ProfessionalExperienceResponse(ProfessionalExperienceBase):
     created_at: datetime
     updated_at: datetime
 
-
 class CandidateSkillBase(BaseModel):
     name: str
     category: Optional[str] = None
     proficiency: Optional[str] = None
     years_experience: Optional[float] = None
     last_used: Optional[str] = None
-
-
 class CandidateSkillCreate(CandidateSkillBase):
     candidate_id: UUID
-
-
 class CandidateSkillUpdate(CandidateSkillBase):
     pass
-
-
 class CandidateSkillResponse(CandidateSkillBase):
     id: UUID
     candidate_id: UUID
     confidence: Optional[float]
     created_at: datetime
     updated_at: datetime
-
 
 class CandidateCertificationBase(BaseModel):
     name: str
@@ -117,23 +94,16 @@ class CandidateCertificationBase(BaseModel):
     expiry_date: Optional[datetime] = None
     credential_reference: Optional[str] = None
     credential_url: Optional[str] = None
-
-
 class CandidateCertificationCreate(CandidateCertificationBase):
     candidate_id: UUID
-
-
 class CandidateCertificationUpdate(CandidateCertificationBase):
     pass
-
-
 class CandidateCertificationResponse(CandidateCertificationBase):
     id: UUID
     candidate_id: UUID
     confidence: Optional[float]
     created_at: datetime
     updated_at: datetime
-
 
 class CandidateEducationBase(BaseModel):
     institution: str
@@ -143,23 +113,16 @@ class CandidateEducationBase(BaseModel):
     end_date: Optional[datetime] = None
     is_current: bool = False
     grade: Optional[str] = None
-
-
 class CandidateEducationCreate(CandidateEducationBase):
     candidate_id: UUID
-
-
 class CandidateEducationUpdate(CandidateEducationBase):
     pass
-
-
 class CandidateEducationResponse(CandidateEducationBase):
     id: UUID
     candidate_id: UUID
     confidence: Optional[float]
     created_at: datetime
     updated_at: datetime
-
 
 class DocumentBase(BaseModel):
     filename: str
@@ -169,13 +132,9 @@ class DocumentBase(BaseModel):
     mime_type: Optional[str] = None
     document_category: Optional[str] = None
     document_subcategory: Optional[str] = None
-
-
 class DocumentCreate(DocumentBase):
     candidate_id: UUID
     storage_path: str
-
-
 class DocumentResponse(DocumentBase):
     id: UUID
     candidate_id: UUID
@@ -183,6 +142,7 @@ class DocumentResponse(DocumentBase):
     status: str
     extraction_status: str
     classification_confidence: Optional[float] = None
+    content_hash: Optional[str] = None
     issuer: Optional[str] = None
     issue_date: Optional[datetime] = None
     expiry_date: Optional[datetime] = None
@@ -194,14 +154,11 @@ class DocumentResponse(DocumentBase):
     source_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
-
-
 class DocumentUploadRequest(BaseModel):
     filename: str
     content: str
     document_category: Optional[str] = None
     document_subcategory: Optional[str] = None
-
 
 class ProfileCompletenessResponse(BaseModel):
     overall_score: float

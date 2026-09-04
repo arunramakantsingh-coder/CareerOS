@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
 SUPPORTED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".rtf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".zip"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 MAX_FILE_SIZE = 25 * 1024 * 1024
 MAX_ARCHIVE_SIZE = 100 * 1024 * 1024
 MAX_ARCHIVE_UNCOMPRESSED_SIZE = 250 * 1024 * 1024
@@ -40,6 +41,12 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
     meta: Dict[str, Any] = {"method": "none", "ocr_required": False, "page_count": None}
     if suffix == ".txt" or (mime_type or "").startswith("text/"):
         return content.decode("utf-8", errors="replace"), {**meta, "method": "text"}
+    if suffix == ".rtf":
+        try:
+            plain = re.sub(r"\\[a-z]+\d* ?|[{}]", " ", content.decode("utf-8", errors="replace"))
+            return re.sub(r"\s+", " ", plain).strip(), {**meta, "method": "rtf_text"}
+        except Exception as exc:
+            return "", {**meta, "method": "rtf_error", "error": str(exc)}
     if suffix == ".doc":
         try:
             result = subprocess.run(["antiword", "-"], input=content, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=True)
@@ -79,15 +86,97 @@ def extract_text(filename: str, mime_type: str | None, content: bytes) -> Tuple[
             return "\n\n".join(pages).strip(), {**meta, "ocr_required": True, "method": "pdf_ocr"}
         except Exception as exc:
             return "", {**meta, "ocr_required": True, "method": "pdf_ocr_error", "error": str(exc)}
-    if suffix in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}:
+    if suffix in IMAGE_EXTENSIONS:
         try:
             from PIL import Image
             import pytesseract
             image = Image.open(io.BytesIO(content))
-            return pytesseract.image_to_string(image).strip(), {**meta, "method": "image_ocr", "ocr_required": True}
+            return pytesseract.image_to_string(image).strip(), {
+                **meta,
+                "method": "image_ocr",
+                "ocr_required": True,
+                "image_width": image.width,
+                "image_height": image.height,
+            }
         except Exception as exc:
             return "", {**meta, "method": "image_ocr_error", "ocr_required": True, "error": str(exc)}
     return "", {**meta, "method": "unsupported"}
+
+
+def image_to_pdf(content: bytes) -> bytes:
+    """Create a derived PDF for an uploaded image while preserving the original image as evidence."""
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(content))
+    if getattr(image, "is_animated", False):
+        image.seek(0)
+    if image.mode not in ("RGB", "L"):
+        background = Image.new("RGB", image.size, "white")
+        if "A" in image.getbands():
+            background.paste(image, mask=image.getchannel("A"))
+        else:
+            background.paste(image.convert("RGB"))
+        image = background
+    elif image.mode == "L":
+        image = image.convert("RGB")
+    output = io.BytesIO()
+    image.save(output, format="PDF", resolution=150.0)
+    return output.getvalue()
+
+
+def build_markdown_record(
+    *,
+    document_id: str,
+    owner: str | None,
+    original_filename: str,
+    stored_filename: str,
+    content_hash: str,
+    classification: Dict[str, Any],
+    extraction_meta: Dict[str, Any],
+    extracted_text: str,
+    relative_path: str | None,
+    derived_pdf_path: str | None,
+) -> str:
+    """Create the human/audit readable sidecar record required by the evidence vault."""
+    category = classification.get("category", "other")
+    subtype = classification.get("subcategory", "unclassified")
+    confidence = classification.get("confidence", 0)
+    lines = [
+        f"# CareerOS Evidence Record — {original_filename}",
+        "",
+        "## Identity",
+        f"- Document ID: `{document_id}`",
+        f"- Owner: {owner or 'Unknown'}",
+        f"- Original filename: `{original_filename}`",
+        f"- Stored filename: `{stored_filename}`",
+        f"- Source relative path: `{relative_path or original_filename}`",
+        f"- SHA-256: `{content_hash}`",
+        "",
+        "## Classification",
+        f"- Category: **{category}**",
+        f"- Subtype: **{subtype}**",
+        f"- Confidence: **{confidence}**",
+        "",
+        "## Extraction",
+        f"- Method: `{extraction_meta.get('method', 'none')}`",
+        f"- OCR required: `{bool(extraction_meta.get('ocr_required'))}`",
+        f"- Page count: `{extraction_meta.get('page_count')}`",
+    ]
+    if extraction_meta.get("image_width") and extraction_meta.get("image_height"):
+        lines.append(f"- Image dimensions: `{extraction_meta.get('image_width')} x {extraction_meta.get('image_height')}`")
+    if derived_pdf_path:
+        lines.extend(["", "## Derived Artifacts", f"- Normalized PDF: `{derived_pdf_path}`", "- Original evidence remains authoritative."])
+    lines.extend([
+        "",
+        "## Extracted Text",
+        "",
+        extracted_text[:100000] if extracted_text else "_No extractable text was produced._",
+        "",
+        "## Provenance",
+        "This Markdown file is a derived CareerOS index/audit artifact. The original uploaded document remains the authoritative evidence.",
+        "",
+    ])
+    return "\n".join(lines)
 
 
 def classify_document(filename: str, text: str) -> Dict[str, Any]:
@@ -123,7 +212,8 @@ def canonical_filename(owner: str | None, classification: Dict[str, Any], issuer
     if stem and stem.lower() not in {"document", "scan", "img", "image"}:
         pieces.append(stem)
     suffix = Path(original).suffix.lower() or ".bin"
-    return safe_filename(" - ".join(p for p in pieces if p))[:240] + suffix
+    base = safe_filename(" - ".join(p for p in pieces if p))[:230]
+    return f"{base}{suffix}"
 
 
 def iter_zip_entries(content: bytes) -> Iterable[Tuple[str, bytes]]:

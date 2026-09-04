@@ -3,10 +3,10 @@ name: CareerOS M02 Identity CI
 on:
   push:
     branches:
-      - 'working/m02-professional-identity-v1.5-20260904'
+      - 'working/m02-professional-identity-v1.6-reconciled-20260905'
   pull_request:
     branches:
-      - 'working/m02-professional-identity-v1.5-20260904'
+      - 'working/m02-professional-identity-v1.6-reconciled-20260905'
 
 jobs:
   backend:

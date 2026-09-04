@@ -13,7 +13,13 @@ from app.models.candidate_education import CandidateEducation
 
 
 class ExtractionService:
-    """Evidence-first service for extracting profile data from ingested documents."""
+    """Evidence-first extraction service.
+
+    Important M02 rule: only documents explicitly classified as CV/resume may
+    enrich the canonical professional profile. Other documents are evidence
+    and are indexed, classified and OCR/text extracted, but never copied into
+    profile sections automatically.
+    """
 
     def __init__(self):
         self.parser = CVParser()
@@ -22,12 +28,16 @@ class ExtractionService:
         text = self._get_document_text(document)
         if not text.strip():
             raise ValueError("No extractable text was produced for this document")
+
         parsed_data = self.parser.parse(text, str(document.id))
+        is_cv = (document.document_category or "").lower() == "cv"
+        extraction_type = "cv_profile" if is_cv else "document_evidence"
+
         extraction = ExtractionResult(
             candidate_id=document.candidate_id,
             document_id=document.id,
-            extraction_type=document.document_category or "document",
-            extraction_version="1.1",
+            extraction_type=extraction_type,
+            extraction_version="1.2",
             extracted_data=parsed_data,
             confidence_scores=self._extract_confidence(parsed_data),
             status="complete",
@@ -39,9 +49,20 @@ class ExtractionService:
         document.extraction_id = extraction.id
         document.extraction_status = "complete"
         document.status = "processed"
-        document.processing_status = {**(document.processing_status or {}), "stage": "profile_enriched", "extraction_id": str(extraction.id)}
+        document.processing_status = {
+            **(document.processing_status or {}),
+            "stage": "profile_enriched" if is_cv else "evidence_indexed",
+            "extraction_id": str(extraction.id),
+            "profile_enrichment": "enabled" if is_cv else "disabled_non_cv_source",
+        }
         db.commit()
-        self._populate_profile(document.candidate_id, parsed_data, document, db)
+
+        # Never let certificates, education, employment letters, payslips,
+        # projects, etc. contaminate the canonical profile. They remain
+        # evidence and can be reviewed/linked explicitly later.
+        if is_cv:
+            self._populate_profile(document.candidate_id, parsed_data, document, db)
+
         db.refresh(extraction)
         return extraction
 
@@ -77,9 +98,9 @@ class ExtractionService:
                     value_type="string",
                     source_text=str(value),
                     confidence=0.8,
-                    confidence_reason="Extracted from authoritative source document",
+                    confidence_reason="Extracted from source document",
                     extraction_status="extracted",
-                    extraction_metadata={"document_id": str(document.id)},
+                    extraction_metadata={"document_id": str(document.id), "source_category": document.document_category},
                 )
                 db.add(field)
                 fields.append(field)
@@ -95,7 +116,7 @@ class ExtractionService:
                     confidence=skill.get("confidence", 0.7),
                     confidence_reason="Matched against document skill vocabulary",
                     extraction_status="extracted",
-                    extraction_metadata={"document_id": str(document.id)},
+                    extraction_metadata={"document_id": str(document.id), "source_category": document.document_category},
                 )
                 db.add(field)
                 fields.append(field)
@@ -132,7 +153,7 @@ class ExtractionService:
                     name=skill["name"],
                     category=skill.get("category", "Technical"),
                     confidence=skill.get("confidence", 0.7),
-                    source_type="document",
+                    source_type="cv",
                     source_id=document.id,
                 ))
 
@@ -152,8 +173,8 @@ class ExtractionService:
                     responsibilities=exp.get("responsibilities", []),
                     achievements=exp.get("achievements", []),
                     is_reconciled=False,
-                    reconciliation_status="extracted",
-                    source_type="document",
+                    reconciliation_status="extracted_from_cv",
+                    source_type="cv",
                     source_id=document.id,
                 ))
 
@@ -168,9 +189,9 @@ class ExtractionService:
                 db.add(CandidateCertification(
                     candidate_id=candidate_id,
                     name=cert["name"],
-                    issuer=cert.get("issuer", "Unknown"),
+                    issuer=cert.get("issuer") or "Unknown",
                     confidence=cert.get("confidence", 0.7),
-                    source_type="document",
+                    source_type="cv",
                     source_id=document.id,
                 ))
 
@@ -189,7 +210,7 @@ class ExtractionService:
                     degree=edu["degree"],
                     field_of_study=edu.get("field"),
                     confidence=edu.get("confidence", 0.7),
-                    source_type="document",
+                    source_type="cv",
                     source_id=document.id,
                 ))
 

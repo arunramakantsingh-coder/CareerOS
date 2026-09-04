@@ -1,22 +1,23 @@
 # CareerOS — Bug Tracker
 
-## M02 Profile Repair v1.2
+## M02 Profile / OAuth / Vault — 2026-09-04
 
-- BUG-001 — FastAPI validation arrays were rendered as React children during document upload. **Fixed** by normalizing API error payloads before rendering.
-- BUG-002 — CV intake and professional bulk vault were not clearly separated. **Fixed** in the Documents UI.
-- BUG-003 — Horizontal navigation duplicated the vertical module list. **Fixed** by making the horizontal strip a career journey: Home → Build Profile → Discover → Apply → Interview → Insights.
-- BUG-004 — Mobile camera capture was unreliable, especially over LAN HTTP. **Mitigated** with a real browser camera scanner when secure-context APIs are available plus a file/capture fallback and clear secure-context guidance.
-- BUG-005 — OAuth provider buttons had weak configuration feedback. **Superseded by BUG-007** after runtime reproduction identified the callback-origin defect.
-- BUG-006 — Profile builder did not expose a complete manual career form. **Fixed** with editable personal, experience, education, certification and skills sections using existing canonical models.
+### Resolved in implementation — runtime verification required
+- **BUG-007 — Google SSO callback loop.** Google account chooser worked but the session returned to `/login`. Repair uses the frontend-origin OAuth callback and fragment token handoff so `localStorage` is written on `localhost:3000` rather than `localhost:8000`.
+- **BUG-008 — Dedicated CV upload validation.** `relative_paths` is now transported as a deterministic JSON list for multipart requests.
+- **BUG-009 — Professional Document Vault bulk validation.** Multi-file/folder/ZIP intake uses the same list protocol; single CV intake remains separate.
+- **BUG-010 — Evidence metadata sidecar.** Evidence ingestion retains the original file and creates the requested human-readable Markdown metadata record containing identity, hash, classification, extraction/OCR state and derived artifacts.
+- **BUG-011 — Image evidence normalization.** Image/scanner evidence can retain the original while producing a PDF derivative for downstream workflows.
+- **BUG-012 — Documents page auth import.** Missing `useAuth` import repaired.
+- **BUG-013 — Profile contamination.** Non-CV professional documents could contribute generic extracted information to the canonical profile. **Fixed in v1.5:** only documents classified as `cv` may automatically enrich the canonical profile.
+- **BUG-014 — Section cross-contamination.** Loose CV regexes could classify arbitrary text as certification/education/skills. **Fixed in v1.5:** section-aware parser with conservative certification and education extraction.
+- **BUG-015 — Duplicate navigation semantics.** Horizontal navigation repeated vertical navigation. **Fixed in v1.5:** vertical bar represents domains; horizontal bar represents tools within the selected domain. Professional Identity now exposes Profile → CV & Documents → Profile Setup → Evidence Library → Career Vault → Personas.
+- **BUG-016 — Profile Setup had become a separate onboarding universe.** **Fixed in v1.5:** Profile Setup is now a unified application route and legacy `/onboarding` redirects into the profile builder.
+- **BUG-017 — Evidence Library was embedded rather than first-class.** **Fixed in v1.5:** dedicated Evidence Library route with detected document class, confidence, processing state, provenance and hash columns.
+- **BUG-018 — Command/Techno date controls and selects visually diverged from the OS theme.** **Fixed in v1.5:** dark color-scheme, primary accent and themed option surfaces are applied to native controls.
 
-## M02 OAuth + Vault Repair v1.4 — 2026-09-04
+### External configuration gate
+- **BUG-019 — Gmail mailbox authorization blocked by Google OAuth Testing policy.** This is not a CareerOS callback failure. Google can allow the basic Google SSO scope while separately blocking Gmail API scopes until the account is added as a test user or the OAuth application completes the appropriate Google verification/publishing process. **Action:** Google Cloud Console → Google Auth Platform → Audience → Test users → add the intended Gmail account; then retry Gmail connection.
 
-- BUG-007 — Google OAuth reached the Google account chooser successfully but returned to CareerOS as unauthenticated. **Implementation fixed; local runtime verification pending.** Root cause: the backend callback response on `localhost:8000` attempted to write `localStorage`; browser storage is origin-scoped, so the token never reached the frontend origin on `localhost:3000`. Repair: backend now redirects to `/oauth/callback` using a URL fragment; the frontend callback stores the token in the correct origin, loads `/api/v1/auth/me`, persists the user session, and opens the dashboard.
-- BUG-008 — Dedicated CV upload returned `Input should be a valid list`. **Implementation fixed; local runtime verification pending.** Root cause: multipart `relative_paths` was declared as `List[str]` while the single-file client supplied a scalar form value. Repair: clients serialize paths as one JSON array and backend parses that deterministic field.
-- BUG-009 — Professional Document Vault multi-file/folder upload returned the same `Input should be a valid list` validation error. **Implementation fixed; local runtime verification pending.** Same protocol repair as BUG-008, preserving one path per uploaded file.
-- BUG-010 — Evidence pipeline did not persist the previously requested human-readable Markdown sidecar for each ingested document. **Implementation added; local runtime verification pending.** Each persisted evidence file now receives a `.metadata.md` record containing document identity, SHA-256, classification, extraction method, OCR state, derived-artifact path and extracted text. The original remains authoritative.
-- BUG-011 — Image/scanner evidence had OCR but no normalized PDF derivative. **Implementation added; local runtime verification pending.** JPG/JPEG/PNG/TIF/TIFF/WEBP uploads retain the original image and create a derived PDF for downstream document workflows.
-- BUG-012 — Documents page referenced `useAuth()` without importing it in the current branch source. **Fixed in v1.4 repair branch; build/runtime verification pending.**
-
-## Rule
-Keep defects visible, classify them, and do not mark a fix VERIFIED until local runtime testing passes. Implementation-complete is not runtime-verified.
+## Verification rule
+Implementation-complete is not VERIFIED. A defect is VERIFIED only after the local Docker runtime and browser acceptance test pass. Preserve all backup/version branches before merging milestone changes.

@@ -4,81 +4,61 @@
 
 ## Snapshot
 
-- Date: 2026-09-03
-- Application development line: `working/m02-profile-builder-v1.3-20260902`
-- Application development HEAD before this documentation-only branch: `be50dbdd3a9f957f159c2e453ed11d6a96db328e`
-- Documentation/control-plane working branch: `working/ai-control-plane-v1.1-20260903`
-- Control-plane branch is documentation-only and must NOT be treated as a replacement application branch.
+- Date: 2026-09-04
+- Application development line: `working/m02-chatgpt-takeover-20260904`
+- Parent implementation line: `working/m02-professional-identity-v1.5-20260904`
+- Parent HEAD at takeover: `6e43b5c9dac6ee411bc43953f3d9d801d822ca1d`
 - Active product release: v0.2 Global Job Intelligence
 - Active milestone: M02 Profile Builder / Professional Identity reconciliation
-- Overall status: **IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING**
+- Overall status: **IMPLEMENTATION PRESENT / DATABASE RECONCILIATION + FULL RUNTIME QA IN PROGRESS**
 
-## What this session changed
+## ChatGPT takeover
 
-A dedicated universal AI control plane was added so a new AI can take over from the GitHub repository without relying on the previous chat transcript.
+ChatGPT is now the engineering/QA continuation agent for the current M02 line. The previous coding AI's draft PR #16 remains unmerged. No release branch merge is authorized by this handover.
 
-Added:
+## Verified runtime defect
 
-- `.ai/README.md` — control-plane entrypoint and source-of-truth hierarchy
-- `.ai/ROLE_MATRIX.md` — Product Architect, Application Architect, AI Engineering Lead, Frontend/UX Architect, QA/Release Reviewer, Git/Release Controller and Handover Agent roles
-- `.ai/AI_TAKEOVER_PROTOCOL.md` — mandatory takeover, engineering, verification and closeout workflow
-- `.ai/TAKEOVER_PROMPT.md` — copy/paste prompt for handing the repository to another AI
+The local PostgreSQL database has no `alembic_version` table and is therefore not tracked by Alembic. The current application models expect `users.role`, but the local `users` table does not contain it. Normal password login and Google SSO both fail at the shared `User` query with PostgreSQL `UndefinedColumn: users.role does not exist`.
 
-No application runtime code, API route, database model or migration was intentionally changed by this control-plane work.
+The database does already contain the three M02 tables `career_fact_evidence`, `persona_suggestions` and `email_connector_accounts` with the expected columns and foreign keys. The M02 `documents` columns and M02 indexes are missing. This is consistent with the old development startup path using SQLAlchemy `Base.metadata.create_all()` instead of Alembic migrations: `create_all()` creates missing tables but does not alter existing tables.
 
-## Current product priority
+## Changes made by ChatGPT on takeover branch
 
-Profile first:
+- Removed development-time `Base.metadata.create_all(bind=engine)` from `backend/app/main.py` so application startup cannot silently bypass Alembic.
+- Changed Docker backend startup to run `alembic upgrade head` before Uvicorn.
+- Added `backend/scripts/reconcile_local_dev_db.py`, a one-time, explicit and re-runnable reconciliation utility for the known pre-Alembic local database. It adds only the missing 016 schema objects and establishes Alembic revision `016_m02_identity_intelligence` after verifying the required existing tables.
+- Corrected M02 CI trigger scope so the workflow runs on `working/m02-*` pushes and PRs targeting `release/v0.2-global-job-intelligence`.
 
-`Profile Builder → CV + Professional Document Vault → Profile Intelligence → Personas → Global Job Discovery → Email Intelligence → Company/Recruiter Intelligence → Job Intelligence/Matching → Skill Gap → Application Factory/CRM → Live Interview Assistant → Analytics/Learning → Global Mobility`
+## Existing requirements still under active QA
 
-## Current top-priority validation areas
+Profile Builder, Career Passport, Profile Setup, multi-document intake, section-aware CV parsing, evidence graph, Career Vault, personas, developer reset/isolation, Gmail connector separation, themes, date controls, navigation separation, Bug Tracker/Project Tracker/Roadmap, security and regression tests remain subject to actual runtime verification.
 
-1. Profile Builder CRUD and complete profile sections.
-2. CV intake remains separate from Professional Document Vault.
-3. Multi-file/folder/ZIP/camera document intake and extraction.
-4. Evidence/provenance linkage from documents into profile suggestions.
-5. Google SSO runtime with real provider credentials.
-6. Separate Gmail authorization runtime.
-7. LinkedIn SSO/profile sync runtime with actual provider permissions.
-8. Text-input focus regression: typing a full string must not lose focus after one character.
-9. Date-picker and controlled dropdown behavior.
-10. Vertical domain navigation vs contextual horizontal navigation.
-11. Application-wide settings separation.
-12. Bug Tracker / Project Tracker / Roadmap accuracy.
+## Non-negotiable safety
 
-## Known branch issue
+- Do not delete/recreate the PostgreSQL volume.
+- Do not modify already-applied Alembic migrations.
+- Do not manually patch Google Cloud OAuth configuration to hide an application/database defect.
+- Do not merge PR #16 until local DB repair, CI, backend/frontend tests and browser journeys are verified.
+- Never claim a test or runtime behavior passed unless it was actually executed.
 
-`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and was previously observed at 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
+## Exact next action
 
-## Known documentation issue
-
-`docs/PROJECT_TRACKER.md` on the application line has previously named `working/m02-profile-repair-v1.2-20260902` as current while the actual profile line is `working/m02-profile-builder-v1.3-20260902`. Future agents must reconcile this before making release decisions.
-
-## External prerequisites
-
-OAuth cannot be completed by source code alone. Google and LinkedIn provider applications require valid credentials and exact callback registration. Gmail mailbox access is a separate Google authorization grant. No secrets belong in Git.
-
-## Verification rule
-
-No feature is `VERIFIED` until actual runtime evidence, relevant tests, regression checks and QA review are recorded.
-
-## Exact next AI action
-
-1. Read the `.ai` control plane.
-2. Reconcile the active application branch against actual Git ancestry.
-3. Inspect the current profile implementation and runtime.
-4. Complete M02 profile/evidence QA and documentation reconciliation.
-5. Reconcile Live Interview onto the current profile line only after the profile foundation is stable.
-6. Then move to Opportunity / Global Job Discovery.
+1. Pull `working/m02-chatgpt-takeover-20260904` locally.
+2. Run the one-time database reconciliation utility.
+3. Restart Docker Compose and verify Alembic reports `016_m02_identity_intelligence` as current.
+4. Verify password login and Google SSO.
+5. Run backend regression and frontend TypeScript gates.
+6. Execute the M02 browser/runtime acceptance journey and fix every observed defect.
+7. Update this handover with exact evidence and only then prepare a PR for human review.
 
 ## Handover marker
 
 ```text
-[CAREEROS: AI HANDOVER — 2026-09-03]
-Application branch: working/m02-profile-builder-v1.3-20260902
-Application baseline: be50dbd
-Control-plane branch: working/ai-control-plane-v1.1-20260903
-Status: CONTROL PLANE IMPLEMENTED / APPLICATION RUNTIME E2E ACCEPTANCE PENDING
-No application feature marked VERIFIED by this documentation-only change.
+[CAREEROS: CHATGPT ENGINEERING TAKEOVER — 2026-09-04]
+Branch: working/m02-chatgpt-takeover-20260904
+Parent: working/m02-professional-identity-v1.5-20260904 @ 6e43b5c
+Release: v0.2 Global Job Intelligence
+Milestone: M02 Professional Identity
+Status: DB ROOT CAUSE IDENTIFIED / REPAIR CODE COMMITTED / FULL QA PENDING
+PR #16: OPEN / DRAFT / NOT MERGED
 ```

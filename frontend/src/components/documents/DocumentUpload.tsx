@@ -25,8 +25,11 @@ export default function DocumentUpload({ onUploadComplete, category = "cv", subc
     if (!token) { setError("Please sign in to upload your CV."); setIsUploading(false); return; }
 
     const form = new FormData();
-    form.append("files", file, file.name); form.append("relative_paths", file.name); form.append("document_category", category);
+    form.append("files", file, file.name);
+    form.append("relative_paths", JSON.stringify([file.name]));
+    form.append("document_category", category);
     if (subcategory) form.append("document_subcategory", subcategory);
+
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${resolveApiBaseUrl()}/api/v1/documents/batch-upload`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);

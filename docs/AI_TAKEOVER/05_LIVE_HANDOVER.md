@@ -4,81 +4,124 @@
 
 ## Snapshot
 
-- Date: 2026-09-03
-- Application development line: `working/m02-profile-builder-v1.3-20260902`
-- Application development HEAD before this documentation-only branch: `be50dbdd3a9f957f159c2e453ed11d6a96db328e`
-- Documentation/control-plane working branch: `working/ai-control-plane-v1.1-20260903`
-- Control-plane branch is documentation-only and must NOT be treated as a replacement application branch.
+- Date: 2026-09-05
+- Application development line: `working/m02-professional-identity-v1.6-reconciled-20260905`
+- Application HEAD at this handover update: `cf0ae51bda6d392dd7afdb4c47ba2c23ca3eecb2`
 - Active product release: v0.2 Global Job Intelligence
-- Active milestone: M02 Profile Builder / Professional Identity reconciliation
-- Overall status: **IMPLEMENTATION PRESENT / RUNTIME & E2E ACCEPTANCE PENDING**
+- Active milestone: **M02 Professional Identity / Profile Builder / Career Intake**
+- Current integration PR: **#19 — M02 v1.6 Reconciled Professional Identity implementation**
+- Release target: `release/v0.2-global-job-intelligence`
+- Overall status: **IMPLEMENTATION PRESENT / LOCAL RUNTIME & E2E ACCEPTANCE PENDING**
 
-## What this session changed
+## Current development model
 
-A dedicated universal AI control plane was added so a new AI can take over from the GitHub repository without relying on the previous chat transcript.
+CareerOS uses an AI-led, GitHub-first development loop:
 
-Added:
+```text
+User + Lead AI discuss requirement
+        ↓
+Lead AI defines scope + acceptance criteria
+        ↓
+Coding AI implements directly on authorized GitHub working branch
+        ↓
+Tests / migrations / code validation
+        ↓
+Commit + exact implementation report
+        ↓
+Lead AI reviews GitHub state
+        ↓
+Human pulls exact branch and runs local Docker/browser acceptance
+        ↓
+Human returns runtime evidence
+        ↓
+Lead AI diagnoses / coding AI fixes if required
+        ↓
+Final QA / release review
+        ↓
+VERIFIED only after evidence + approval
+```
 
-- `.ai/README.md` — control-plane entrypoint and source-of-truth hierarchy
-- `.ai/ROLE_MATRIX.md` — Product Architect, Application Architect, AI Engineering Lead, Frontend/UX Architect, QA/Release Reviewer, Git/Release Controller and Handover Agent roles
-- `.ai/AI_TAKEOVER_PROTOCOL.md` — mandatory takeover, engineering, verification and closeout workflow
-- `.ai/TAKEOVER_PROMPT.md` — copy/paste prompt for handing the repository to another AI
+The human is the local runtime/operator and product owner, not the normal source-file editor. The coding AI should use GitHub write access when available and then hand the human a precise, reproducible local test procedure.
 
-No application runtime code, API route, database model or migration was intentionally changed by this control-plane work.
+## Required local-testing handoff
 
-## Current product priority
+After a GitHub implementation, the AI must provide:
 
-Profile first:
+- exact branch;
+- expected commit SHA;
+- pull/checkout commands;
+- Docker rebuild/start commands;
+- migration/database commands when applicable;
+- browser/API routes;
+- expected results;
+- regression/negative checks;
+- destructive commands to avoid;
+- exact logs/screenshots/output to return on failure.
 
-`Profile Builder → CV + Professional Document Vault → Profile Intelligence → Personas → Global Job Discovery → Email Intelligence → Company/Recruiter Intelligence → Job Intelligence/Matching → Skill Gap → Application Factory/CRM → Live Interview Assistant → Analytics/Learning → Global Mobility`
+For database changes, preserve the PostgreSQL volume unless destructive reset is explicitly authorized.
 
-## Current top-priority validation areas
+## Current M02 state
 
-1. Profile Builder CRUD and complete profile sections.
-2. CV intake remains separate from Professional Document Vault.
-3. Multi-file/folder/ZIP/camera document intake and extraction.
-4. Evidence/provenance linkage from documents into profile suggestions.
-5. Google SSO runtime with real provider credentials.
-6. Separate Gmail authorization runtime.
-7. LinkedIn SSO/profile sync runtime with actual provider permissions.
-8. Text-input focus regression: typing a full string must not lose focus after one character.
-9. Date-picker and controlled dropdown behavior.
-10. Vertical domain navigation vs contextual horizontal navigation.
-11. Application-wide settings separation.
-12. Bug Tracker / Project Tracker / Roadmap accuracy.
+M02 v1.6 is the reconciled continuation of the Professional Identity work on top of the auth-tested v0.2 baseline. The implementation includes the profile/evidence/document-intelligence foundations described by PR #19. Code-level validation has been performed on the branch, but **local Docker/browser runtime acceptance remains the gate**.
 
-## Known branch issue
+The latest previously reported migration work establishes a controlled Alembic synchronization path rather than relying on `Base.metadata.create_all()` during application startup. The local database migration must be observed in the user's environment before authentication/database regression can be considered runtime-verified.
 
-`working/live-interview-workspace-v0.2.2-20260902` is not the current continuation. It diverges from the profile branch and was previously observed at 16 commits behind / 1 ahead with merge base `9bd4d80`. The live interview page must be reconciled onto the current profile line before integration.
+## Important release safety
 
-## Known documentation issue
+- v0.1 remains frozen.
+- `release/v0.2-global-job-intelligence` must not be changed as part of normal M02 implementation.
+- PR #19 must not be merged automatically.
+- Do not claim M02 `VERIFIED` before local runtime evidence and final QA/release review.
+- Do not start Global Job Discovery merely because profile code exists; complete the M02 acceptance gate first.
+- Live Interview remains a divergent/legacy line and requires explicit reconciliation before integration.
 
-`docs/PROJECT_TRACKER.md` on the application line has previously named `working/m02-profile-repair-v1.2-20260902` as current while the actual profile line is `working/m02-profile-builder-v1.3-20260902`. Future agents must reconcile this before making release decisions.
+## Takeover requirements
 
-## External prerequisites
+A new AI must first read:
 
-OAuth cannot be completed by source code alone. Google and LinkedIn provider applications require valid credentials and exact callback registration. Gmail mailbox access is a separate Google authorization grant. No secrets belong in Git.
+1. `AI_TAKEOVER.md`
+2. `AGENTS.md`
+3. `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
+4. `docs/21_AI_TO_AI_COORDINATION_PROTOCOL.md`
+5. `docs/22_CAREEROS_CURRENT_CONTROL_STATE.md`
+6. `docs/23_CAREEROS_MODULE_VERSION_REGISTRY.md`
+7. relevant product/spec/domain documents
 
-## Verification rule
+Then inspect actual GitHub branches, HEAD, ancestry, PRs, migrations, tests and current implementation. Do not trust stale documentation when GitHub/runtime evidence disagrees; record the discrepancy.
 
-No feature is `VERIFIED` until actual runtime evidence, relevant tests, regression checks and QA review are recorded.
+## Closeout template
 
-## Exact next AI action
+Every material AI session must leave:
 
-1. Read the `.ai` control plane.
-2. Reconcile the active application branch against actual Git ancestry.
-3. Inspect the current profile implementation and runtime.
-4. Complete M02 profile/evidence QA and documentation reconciliation.
-5. Reconcile Live Interview onto the current profile line only after the profile foundation is stable.
-6. Then move to Opportunity / Global Job Discovery.
+```text
+Timestamp:
+Active branch:
+Commit SHA:
+Milestone/module/version:
+Objective:
+Implementation completed:
+Files changed:
+Database/migrations:
+APIs:
+UI:
+Tests actually executed:
+CI status actually observed:
+Local runtime evidence:
+Known bugs:
+Blockers/external dependencies:
+Material decisions:
+What is NOT complete:
+Exact next action:
+```
 
 ## Handover marker
 
 ```text
-[CAREEROS: AI HANDOVER — 2026-09-03]
-Application branch: working/m02-profile-builder-v1.3-20260902
-Application baseline: be50dbd
-Control-plane branch: working/ai-control-plane-v1.1-20260903
-Status: CONTROL PLANE IMPLEMENTED / APPLICATION RUNTIME E2E ACCEPTANCE PENDING
-No application feature marked VERIFIED by this documentation-only change.
+[CAREEROS: AI HANDOVER — 2026-09-05]
+Application branch: working/m02-professional-identity-v1.6-reconciled-20260905
+Control state: M02 v1.6 IMPLEMENTATION PRESENT / LOCAL RUNTIME E2E ACCEPTANCE PENDING
+Release branch: release/v0.2-global-job-intelligence
+Current PR: #19
+Latest control-plane commit: cf0ae51bda6d392dd7afdb4c47ba2c23ca3eecb2
+No M02 VERIFIED claim has been made by this handover update.
 ```

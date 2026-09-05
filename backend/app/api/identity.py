@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.candidate_certification import CandidateCertification
@@ -16,7 +15,6 @@ from app.models.candidate_education import CandidateEducation
 from app.models.candidate_profile import CandidateProfile
 from app.models.candidate_skill import CandidateSkill
 from app.models.career_fact_evidence import CareerFactEvidence
-from app.models.career_profile import CareerProfile
 from app.models.document import Document
 from app.models.email_connector_account import EmailConnectorAccount
 from app.models.persona import Persona
@@ -24,9 +22,11 @@ from app.models.persona_suggestion import PersonaSuggestion
 from app.models.professional_experience import ProfessionalExperience
 from app.models.user import User
 from app.utils.document_ingestion import classify_document, extract_text
+from app.utils.extraction_service import ExtractionService
 
 router = APIRouter(prefix="/identity", tags=["professional-identity"])
 STORAGE_ROOT = Path(__import__("os").getenv("CAREEROS_STORAGE_ROOT", "/app/storage/documents")).resolve()
+extraction_service = ExtractionService()
 
 
 def profile_for(user: User, db: Session) -> CandidateProfile:
@@ -53,7 +53,7 @@ def document_summary(doc: Document, candidate_id: UUID, db: Session) -> dict[str
         "user_label": doc.user_label, "detected_type": detected, "category": doc.document_category,
         "subcategory": doc.document_subcategory, "issuer": doc.issuer,
         "issue_date": doc.issue_date, "expiry_date": doc.expiry_date, "document_number": doc.document_number,
-        "classification_confidence": doc.classification_confidence or classification.get("confidence"),
+        "classification_confidence": doc.classification_confidence if doc.classification_confidence is not None else classification.get("confidence"),
         "classification_reason": doc.classification_reason or classification.get("reason"),
         "verification_status": doc.verification_status, "processing_stage": doc.processing_stage,
         "status": doc.status, "extraction_status": doc.extraction_status, "file_size": doc.file_size,
@@ -61,10 +61,14 @@ def document_summary(doc: Document, candidate_id: UUID, db: Session) -> dict[str
     }
 
 
+def active_experiences(candidate_id: UUID, db: Session) -> list[ProfessionalExperience]:
+    return db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == candidate_id, ProfessionalExperience.reconciliation_status != "superseded").order_by(ProfessionalExperience.start_date.desc().nullslast()).all()
+
+
 @router.get("/overview")
 def identity_overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = profile_for(user, db)
-    experiences = db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == profile.id).order_by(ProfessionalExperience.start_date.desc().nullslast()).all()
+    experiences = active_experiences(profile.id, db)
     educations = db.query(CandidateEducation).filter(CandidateEducation.candidate_id == profile.id).all()
     certifications = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == profile.id).all()
     skills = db.query(CandidateSkill).filter(CandidateSkill.candidate_id == profile.id).all()
@@ -122,7 +126,7 @@ def evidence_library(user: User = Depends(get_current_user), db: Session = Depen
         if verification and verification != "all" and item["verification_status"] != verification: continue
         if search and search.lower() not in " ".join(str(item.get(k) or "") for k in ("original_filename","filename","detected_type","issuer","classification_reason")).lower(): continue
         links=db.query(CareerFactEvidence).filter(CareerFactEvidence.candidate_id==profile.id,CareerFactEvidence.document_id==doc.id).all()
-        item["linked_facts"]=[{"fact_type":x.fact_type,"fact_id":str(x.fact_id),"relationship":x.relationship,"confidence":x.confidence} for x in links]
+        item["linked_facts"]= [{"fact_type":x.fact_type,"fact_id":str(x.fact_id),"relationship":x.relationship,"confidence":x.confidence} for x in links]
         result.append(item)
     return {"documents":result,"filters":{"categories":["all","cv","employment","education","certification","achievement","project","reference","other"],"verification":["all","reported","verified","needs_confirmation","conflicting"]}}
 
@@ -149,20 +153,32 @@ def document_content(document_id: UUID, user: User = Depends(get_current_user), 
 
 @router.post("/documents/{document_id}/reclassify")
 def reclassify_document(document_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Re-read the original document, classify it from content, and rebuild its extracted facts."""
     profile=profile_for(user,db); doc=db.query(Document).filter(Document.id==document_id,Document.candidate_id==profile.id).first()
     if not doc: raise HTTPException(404,"Document not found")
     path=Path(doc.storage_path).resolve()
     if STORAGE_ROOT not in path.parents or not path.is_file(): raise HTTPException(404,"Stored document is unavailable")
     text,meta=extract_text(doc.original_filename,doc.mime_type,path.read_bytes())
     result=classify_document(doc.original_filename,text)
-    doc.document_category=result["category"]; doc.document_subcategory=result["subcategory"]; doc.document_type=result["subcategory"]; doc.detected_type=f"{result['category']}:{result['subcategory']}"; doc.classification_confidence=result["confidence"]; doc.classification_reason=result["reason"]; doc.processing_status={**(doc.processing_status or {}),"classification":result,"extraction":meta}; db.commit(); db.refresh(doc)
+    doc.source_metadata={**(doc.source_metadata or {}),"extracted_text":text[:100000],"extraction":meta,"classification":result}
+    doc.document_category=result["category"]; doc.document_subcategory=result["subcategory"]; doc.document_type=result["subcategory"]; doc.detected_type=f"{result['category']}:{result['subcategory']}"; doc.classification_confidence=result["confidence"]; doc.classification_reason=result["reason"]
+    doc.processing_stage="extracting"; doc.extraction_status="pending"; doc.processing_status={**(doc.processing_status or {}),"stage":"extracting","classification":result,"extraction":meta}; db.commit(); db.refresh(doc)
+    if text.strip():
+        try:
+            extraction_service.extract_from_document(doc,db)
+        except Exception as exc:
+            doc.status="failed"; doc.extraction_status="failed"; doc.processing_stage="failed"; doc.processing_status={**(doc.processing_status or {}),"stage":"extraction_failed","error":str(exc)}; db.commit()
+            raise HTTPException(500,"Document classification succeeded, but profile extraction failed. Recheck the document after resolving the processing error.") from exc
+    else:
+        doc.status="failed"; doc.extraction_status="failed"; doc.processing_stage="needs_review"; doc.processing_status={**(doc.processing_status or {}),"stage":"needs_review","error":"No readable text was produced"}; db.commit()
+    db.refresh(doc)
     return document_summary(doc,profile.id,db)
 
 
 @router.post("/personas/suggestions/generate")
 def generate_persona_suggestions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile=profile_for(user,db)
-    experiences=db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id==profile.id).all()
+    experiences=active_experiences(profile.id,db)
     skills=db.query(CandidateSkill).filter(CandidateSkill.candidate_id==profile.id).all()
     certs=db.query(CandidateCertification).filter(CandidateCertification.candidate_id==profile.id).all()
     docs=db.query(Document).filter(Document.candidate_id==profile.id,Document.document_category=="cv").all()
@@ -197,36 +213,3 @@ def generate_persona_suggestions(user: User = Depends(get_current_user), db: Ses
 def persona_suggestions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     rows=db.query(PersonaSuggestion).filter(PersonaSuggestion.user_id==user.id).order_by(PersonaSuggestion.confidence.desc()).all()
     return [{"id":str(x.id),"name":x.name,"role_family":x.role_family,"positioning":x.positioning,"target_titles":x.target_titles or [],"confidence":x.confidence,"reason":x.reason,"missing_evidence":x.missing_evidence or [],"status":x.status,"supporting_document_ids":x.supporting_document_ids or []} for x in rows]
-
-
-def ensure_career_profile(user: User, candidate: CandidateProfile, db: Session) -> CareerProfile:
-    cp=db.query(CareerProfile).filter(CareerProfile.user_id==user.id,CareerProfile.is_active.is_(True)).first()
-    if not cp:
-        cp=CareerProfile(user_id=user.id,is_active=True)
-        db.add(cp)
-    cp.name=candidate.full_name or cp.name; cp.description=candidate.summary or cp.description; cp.seniority=candidate.seniority or cp.seniority
-    cp.years_experience=int(candidate.years_experience) if candidate.years_experience else cp.years_experience
-    cp.preferred_locations=(candidate.work_preferences or {}).get("preferred_locations") or cp.preferred_locations
-    cp.remote_preference=(candidate.work_preferences or {}).get("remote_preference") or cp.remote_preference
-    cp.target_roles=(candidate.work_preferences or {}).get("target_roles") or cp.target_roles
-    cp.industries=candidate.industries or cp.industries
-    db.flush(); return cp
-
-
-@router.post("/personas/suggestions/{suggestion_id}/activate")
-def activate_persona_suggestion(suggestion_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    profile=profile_for(user,db); suggestion=db.query(PersonaSuggestion).filter(PersonaSuggestion.id==suggestion_id,PersonaSuggestion.user_id==user.id,PersonaSuggestion.candidate_id==profile.id).first()
-    if not suggestion: raise HTTPException(404,"Persona suggestion not found")
-    cp=ensure_career_profile(user,profile,db)
-    persona=Persona(user_id=user.id,career_profile_id=cp.id,name=suggestion.name,description=suggestion.reason,positioning=suggestion.positioning,target_titles=suggestion.target_titles,target_industries=profile.industries or [],target_locations=(profile.work_preferences or {}).get("preferred_locations") or [],preferred_seniority=profile.seniority,remote_preference=(profile.work_preferences or {}).get("remote_preference") or "Any",is_active=False,is_default=False,keywords=[])
-    db.add(persona); suggestion.status="activated"; db.commit(); db.refresh(persona)
-    return {"id":str(persona.id),"name":persona.name,"status":"activated"}
-
-
-@router.get("/connections/diagnostics")
-def connection_diagnostics(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    rows=db.query(EmailConnectorAccount).filter(EmailConnectorAccount.user_id==user.id).all()
-    external=[]
-    for x in db.query(__import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity).filter(__import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity.user_id==user.id, __import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity.is_active.is_(True)).all():
-        external.append({"id":str(x.id),"provider":x.provider,"provider_email":x.provider_email,"scopes":x.scopes or [],"token_status":"present" if x.access_token else "missing","token_expires_at":x.token_expires_at,"last_used":x.last_used})
-    return {"email_sources":[{"id":str(x.id),"provider":x.provider,"email_address":x.email_address,"status":x.status,"auth_method":x.auth_method,"capabilities":x.capabilities or {},"scopes":x.scopes or [],"token_expires_at":x.token_expires_at,"last_sync_at":x.last_sync_at,"last_sync_status":x.last_sync_status,"last_error_code":x.last_error_code,"last_error_message":x.last_error_message} for x in rows],"external_identities":external,"provider_catalog":[{"provider":"google","label":"Gmail / Google Workspace","status":"available","capabilities":["read_messages","read_threads","search_messages"]},{"provider":"microsoft","label":"Outlook / Microsoft 365","status":"available","capabilities":["read_messages","read_threads","search_messages"]},{"provider":"imap","label":"IMAP / SMTP","status":"coming_later","capabilities":["read_messages","search_messages","send_message"]},{"provider":"yahoo","label":"Yahoo Mail","status":"coming_later","capabilities":["read_messages","search_messages"]},{"provider":"icloud","label":"iCloud Mail","status":"coming_later","capabilities":["read_messages","search_messages"]}]}

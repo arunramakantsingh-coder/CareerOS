@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
+      - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
   pull_request:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
+      - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
 
 jobs:
   backend:

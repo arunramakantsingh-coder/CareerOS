@@ -42,4 +42,4 @@ Development cadence:
 
 A successful functional stage should become a Git recovery point before the next functional area is changed.
 
-GitHub's own branch protection, pull requests and Actions are preferred for repository-level recovery and release controls. citeturn0search7turn0search2
+GitHub branch protection, pull requests and Actions remain the preferred repository-level controls for code recovery and release management.

@@ -5,6 +5,7 @@ on:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
+      - 'feature/m02-developer-control-layer-20260906'
   pull_request:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
@@ -18,6 +19,7 @@ jobs:
         working-directory: backend
     env:
       PYTHONPATH: .
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/careeros
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

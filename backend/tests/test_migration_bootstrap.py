@@ -54,6 +54,7 @@ DOCUMENT_015_COLUMNS = {
 
 def test_detects_016_schema(monkeypatch):
     tables = M02_TABLES | {
+        "users",
         "career_fact_evidence",
         "persona_suggestions",
         "email_connector_accounts",

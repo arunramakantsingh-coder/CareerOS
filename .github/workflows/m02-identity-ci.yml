@@ -7,11 +7,13 @@ on:
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
       - 'feature/m02-developer-control-layer-20260906'
       - 'feature/m02-intelligence-foundation-20260908'
+      - 'feature/m02-deterministic-foundation-repair-20260908'
   pull_request:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
       - 'feature/m02-developer-control-layer-20260906'
+      - 'feature/m02-intelligence-foundation-20260908'
 
 jobs:
   backend:

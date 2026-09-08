@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -43,7 +43,6 @@ def _remove_document_files(documents: list[Document]) -> int:
 
 
 def _reset_connections(db: Session, user: User) -> dict[str, int]:
-    # Preserve Google identity records used for sign-in, but remove mailbox tokens.
     gmail_tokens_cleared = 0
     identities = db.query(ExternalIdentity).filter(ExternalIdentity.user_id == user.id).all()
     for identity in identities:
@@ -65,7 +64,7 @@ def developer_status(user: User = Depends(require_developer)):
         "developer_mode": True,
         "role": user.role,
         "email": user.email,
-        "tools": ["project_tracker", "bug_tracker", "version_history", "rollback_guidance", "reset_test_data", "diagnostics"],
+        "tools": ["project_tracker", "bug_tracker", "version_history", "rollback_guidance", "reset_test_data", "diagnostics", "intelligence_engine"],
         "reset_scopes": sorted(RESET_SCOPES),
     }
 
@@ -84,6 +83,7 @@ def developer_diagnostics(user: User = Depends(require_developer), db: Session =
         "profile_id": str(profile.id) if profile else None,
         "reset_scopes": sorted(RESET_SCOPES),
         "github_repository": "https://github.com/arunramakantsingh-coder/CareerOS",
+        "intelligence_engine": "http://intelligence:8100",
     }
 
 
@@ -162,5 +162,4 @@ def reset_test_data(request: ResetRequest, user: User = Depends(require_develope
 
 @router.post("/reset-profile")
 def reset_profile(user: User = Depends(require_developer), db: Session = Depends(get_db)):
-    # Backward-compatible alias used by the existing Developer Mode UI.
     return reset_test_data(ResetRequest(scope="all"), user, db)

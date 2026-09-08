@@ -15,6 +15,18 @@ services:
       timeout: 5s
       retries: 5
 
+  intelligence:
+    build: ./services/intelligence
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      INTELLIGENCE_TIMEOUT_SECONDS: ${INTELLIGENCE_TIMEOUT_SECONDS:-90}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "8100"
+    restart: unless-stopped
+
   backend:
     build: ./backend
     environment:
@@ -30,6 +42,8 @@ services:
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
       LINKEDIN_OAUTH_REDIRECT_URI: ${LINKEDIN_OAUTH_REDIRECT_URI:-http://localhost:8000/api/v1/auth/oauth/linkedin/callback}
       DEVELOPER_EMAILS: ${DEVELOPER_EMAILS:-[]}
+      INTELLIGENCE_BASE_URL: http://intelligence:8100
+      INTELLIGENCE_STATUS_TIMEOUT_SECONDS: ${INTELLIGENCE_STATUS_TIMEOUT_SECONDS:-8}
     ports:
       - "8000:8000"
     volumes:
@@ -38,6 +52,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      intelligence:
+        condition: service_started
     command: sh -c "python -m app.core.migrations && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:

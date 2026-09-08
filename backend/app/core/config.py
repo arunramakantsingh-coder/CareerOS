@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # Centralized bootstrap allow-list for local development. Production should use role=developer/admin.
     DEVELOPER_EMAILS: List[str] = []
 
+    # Provider-neutral Intelligence Engine gateway. The local model/runtime is optional
+    # until the host hardware check selects and configures a concrete model.
+    INTELLIGENCE_BASE_URL: str = "http://intelligence:8100"
+    INTELLIGENCE_STATUS_TIMEOUT_SECONDS: float = 8.0
+
     class Config:
         env_file = ".env"
         case_sensitive = True

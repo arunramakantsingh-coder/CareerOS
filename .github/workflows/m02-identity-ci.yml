@@ -6,10 +6,12 @@ on:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
       - 'feature/m02-developer-control-layer-20260906'
+      - 'feature/m02-intelligence-foundation-20260908'
   pull_request:
     branches:
       - 'working/m02-professional-identity-v1.6-reconciled-20260905'
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
+      - 'feature/m02-developer-control-layer-20260906'
 
 jobs:
   backend:
@@ -28,6 +30,19 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - run: python -m compileall -q app
       - run: pytest -q tests/test_identity_intelligence.py tests/test_migration_bootstrap.py
+
+  intelligence:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/intelligence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m py_compile app.py
 
   frontend:
     runs-on: ubuntu-latest

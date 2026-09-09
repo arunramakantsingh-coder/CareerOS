@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -12,7 +13,6 @@ from app.intelligence.contracts import IntelligenceRequest
 from app.intelligence.engine import engine
 from app.models.career_fact_evidence import CareerFactEvidence
 from app.models.document import Document
-from app.models.extraction_result import ExtractionResult
 from app.models.professional_experience import ProfessionalExperience
 from app.utils.cv_parser import CVParser
 
@@ -59,9 +59,9 @@ class IdentityReconciliationError(RuntimeError):
 def reconcile_document_employment(document: Document, db: Session) -> dict[str, Any]:
     """Use the provider-neutral Intelligence Engine to semantically reconcile employment facts.
 
-    The model proposes structured facts only. Database writes remain in this application service,
-    and only unconfirmed records originating solely from this document are replaced. Existing
-    reconciled facts are never silently overwritten.
+    The model proposes structured facts only. Database writes remain in this application service.
+    Unconfirmed employment records sourced only from this document may be replaced; already
+    reconciled facts are preserved and can only receive another supporting evidence link.
     """
     text = (document.source_metadata or {}).get("extracted_text", "")
     if not isinstance(text, str) or not text.strip():
@@ -97,11 +97,15 @@ def reconcile_document_employment(document: Document, db: Session) -> dict[str, 
         temperature=0.0,
     )
     result = _run_engine(request)
+    if result.status != "completed":
+        detail = result.result if isinstance(result.result, dict) else {"error": str(result.result)}
+        raise IdentityReconciliationError(f"AI reconciliation failed: {detail}")
+
     model_payload = _parse_model_result(result.result)
     experiences = [_sanitize_experience(x) for x in model_payload.get("experiences", []) if isinstance(x, dict)]
     experiences = [x for x in experiences if x["organization"] and x["title"]]
 
-    applied, needs_review = _apply_experiences(document, experiences, db)
+    applied, needs_review, protected = _apply_experiences(document, experiences, db)
     metadata = dict(document.source_metadata or {})
     metadata["ai_reconciliation"] = {
         "status": "completed",
@@ -111,6 +115,7 @@ def reconcile_document_employment(document: Document, db: Session) -> dict[str, 
         "trace_id": str(result.trace_id) if result.trace_id else None,
         "applied_count": len(applied),
         "needs_review_count": len(needs_review),
+        "protected_count": len(protected),
         "experiences": experiences,
     }
     document.source_metadata = metadata
@@ -123,15 +128,12 @@ def reconcile_document_employment(document: Document, db: Session) -> dict[str, 
         "trace_id": str(result.trace_id) if result.trace_id else None,
         "applied": applied,
         "needs_review": needs_review,
+        "protected": protected,
         "experiences": experiences,
     }
 
 
 def _run_engine(request: IntelligenceRequest):
-    # FastAPI endpoints are async, while this application service is invoked from sync routes.
-    # Use a dedicated event loop rather than exposing asyncio concerns to extraction callers.
-    import asyncio
-
     try:
         return asyncio.run(engine.execute(request))
     except RuntimeError as exc:
@@ -161,7 +163,6 @@ def _parse_model_result(value: Any) -> dict[str, Any]:
 
 
 def _sanitize_experience(value: dict[str, Any]) -> dict[str, Any]:
-    confidence = _bounded_float(value.get("confidence"), 0.0)
     return {
         "organization": str(value.get("organization") or "").strip()[:255],
         "client": _optional_text(value.get("client"), 255),
@@ -173,12 +174,12 @@ def _sanitize_experience(value: dict[str, Any]) -> dict[str, Any]:
         "achievements": _string_list(value.get("achievements"), 20, 1000),
         "technologies": _string_list(value.get("technologies"), 40, 120),
         "industries": _string_list(value.get("industries"), 10, 120),
-        "confidence": confidence,
+        "confidence": _bounded_float(value.get("confidence"), 0.0),
         "evidence_excerpt": _optional_text(value.get("evidence_excerpt"), 1000),
     }
 
 
-def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db: Session) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db: Session) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     candidate_id = document.candidate_id
     removable = (
         db.query(ProfessionalExperience)
@@ -202,9 +203,16 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
 
     applied: list[dict[str, Any]] = []
     needs_review: list[dict[str, Any]] = []
+    protected: list[dict[str, Any]] = []
     for exp in experiences:
         confidence = exp["confidence"]
-        target = _find_existing_experience(exp, candidate_id, db)
+        verified = _find_verified_match(exp, candidate_id, db)
+        if verified is not None:
+            _ensure_evidence(document, verified, confidence, exp["evidence_excerpt"], db)
+            protected.append({"experience_id": str(verified.id), "organization": verified.company, "title": verified.title, "confidence": confidence})
+            continue
+
+        target = _find_mutable_experience(exp, candidate_id, db)
         if target is None:
             target = ProfessionalExperience(candidate_id=candidate_id)
             db.add(target)
@@ -222,120 +230,109 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
         target.reconciliation_status = "ai_reconciled" if confidence >= 0.85 else "ai_review"
         db.flush()
 
-        evidence = db.query(CareerFactEvidence).filter(
-            CareerFactEvidence.candidate_id == candidate_id,
-            CareerFactEvidence.document_id == document.id,
-            CareerFactEvidence.fact_type == "employment",
-            CareerFactEvidence.fact_id == target.id,
-        ).first()
-        excerpt = exp["evidence_excerpt"] or _fallback_excerpt(exp, document)
-        if evidence:
-            evidence.confidence = confidence
-            evidence.excerpt = excerpt[:1000] if excerpt else None
-        else:
-            db.add(CareerFactEvidence(
-                candidate_id=candidate_id,
-                document_id=document.id,
-                fact_type="employment",
-                fact_id=target.id,
-                relationship="supports",
-                confidence=confidence,
-                excerpt=excerpt[:1000] if excerpt else None,
-            ))
-
-        item = {
-            "experience_id": str(target.id),
-            "organization": target.company,
-            "title": target.title,
-            "confidence": confidence,
-        }
+        _ensure_evidence(document, target, confidence, exp["evidence_excerpt"], db)
+        item = {"experience_id": str(target.id), "organization": target.company, "title": target.title, "confidence": confidence}
         (applied if confidence >= 0.85 else needs_review).append(item)
 
-    return applied, needs_review
+    return applied, needs_review, protected
 
 
-def _find_existing_experience(exp: dict[str, Any], candidate_id: UUID, db: Session) -> ProfessionalExperience | None:
-    rows = db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == candidate_id).all()
+def _find_verified_match(exp: dict[str, Any], candidate_id: UUID, db: Session) -> ProfessionalExperience | None:
+    rows = db.query(ProfessionalExperience).filter(
+        ProfessionalExperience.candidate_id == candidate_id,
+        ProfessionalExperience.is_reconciled.is_(True),
+    ).all()
+    return _best_match(exp, rows, minimum=0.80)
+
+
+def _find_mutable_experience(exp: dict[str, Any], candidate_id: UUID, db: Session) -> ProfessionalExperience | None:
+    rows = db.query(ProfessionalExperience).filter(
+        ProfessionalExperience.candidate_id == candidate_id,
+        ProfessionalExperience.is_reconciled.is_(False),
+    ).all()
+    return _best_match(exp, rows, minimum=0.75)
+
+
+def _best_match(exp: dict[str, Any], rows: list[ProfessionalExperience], minimum: float) -> ProfessionalExperience | None:
     best: tuple[float, ProfessionalExperience | None] = (0.0, None)
     for row in rows:
         score = 0.0
-        if _norm(row.company) == _norm(exp["organization"]):
-            score += 0.55
-        if _norm(row.title) == _norm(exp["title"]):
-            score += 0.30
-        if exp["start_date"] and row.start_date and exp["start_date"][:7] == row.start_date.strftime("%Y-%m"):
-            score += 0.10
-        if exp["end_date"] and row.end_date and exp["end_date"][:7] == row.end_date.strftime("%Y-%m"):
-            score += 0.05
-        if score > best[0]:
-            best = (score, row)
-    return best[1] if best[0] >= 0.75 else None
+        if _norm(row.company) == _norm(exp["organization"]): score += 0.55
+        if _norm(row.title) == _norm(exp["title"]): score += 0.30
+        if exp["start_date"] and row.start_date and exp["start_date"][:7] == row.start_date.strftime("%Y-%m"): score += 0.10
+        if exp["end_date"] and row.end_date and exp["end_date"][:7] == row.end_date.strftime("%Y-%m"): score += 0.05
+        if score > best[0]: best = (score, row)
+    return best[1] if best[0] >= minimum else None
+
+
+def _ensure_evidence(document: Document, experience: ProfessionalExperience, confidence: float, excerpt: str | None, db: Session) -> None:
+    evidence = db.query(CareerFactEvidence).filter(
+        CareerFactEvidence.candidate_id == document.candidate_id,
+        CareerFactEvidence.document_id == document.id,
+        CareerFactEvidence.fact_type == "employment",
+        CareerFactEvidence.fact_id == experience.id,
+    ).first()
+    value = excerpt or _fallback_excerpt({"organization": experience.company, "title": experience.title}, document)
+    if evidence:
+        evidence.confidence = confidence
+        evidence.excerpt = value[:1000] if value else None
+    else:
+        db.add(CareerFactEvidence(
+            candidate_id=document.candidate_id,
+            document_id=document.id,
+            fact_type="employment",
+            fact_id=experience.id,
+            relationship="supports",
+            confidence=confidence,
+            excerpt=value[:1000] if value else None,
+        ))
 
 
 def _fallback_excerpt(exp: dict[str, Any], document: Document) -> str | None:
     text = (document.source_metadata or {}).get("extracted_text", "")
-    if not isinstance(text, str):
-        return None
-    org = exp["organization"]
-    title = exp["title"]
+    if not isinstance(text, str): return None
+    org, title = exp["organization"], exp["title"]
     for line in text.splitlines():
         clean = line.strip()
-        if org.lower() in clean.lower() and title.lower() in clean.lower():
-            return clean
+        if org.lower() in clean.lower() and title.lower() in clean.lower(): return clean
     return f"{title} | {org}"
 
 
 def _string_list(value: Any, limit: int, item_limit: int) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    seen: set[str] = set()
-    result: list[str] = []
+    if not isinstance(value, list): return []
+    seen: set[str] = set(); result: list[str] = []
     for item in value:
-        text = str(item or "").strip()
-        key = _norm(text)
+        text = str(item or "").strip(); key = _norm(text)
         if text and key and key not in seen:
-            seen.add(key)
-            result.append(text[:item_limit])
-        if len(result) >= limit:
-            break
+            seen.add(key); result.append(text[:item_limit])
+        if len(result) >= limit: break
     return result
 
 
 def _optional_text(value: Any, limit: int) -> str | None:
-    text = str(value or "").strip()
-    return text[:limit] if text else None
+    text = str(value or "").strip(); return text[:limit] if text else None
 
 
 def _bounded_float(value: Any, default: float) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return default
+    try: number = float(value)
+    except (TypeError, ValueError): return default
     return max(0.0, min(1.0, number))
 
 
 def _normalize_date(value: Any) -> str | None:
     text = str(value or "").strip()
-    if not text:
-        return None
-    if re.fullmatch(r"\d{4}", text):
-        return f"{text}-01-01"
+    if not text: return None
+    if re.fullmatch(r"\d{4}", text): return f"{text}-01-01"
     for fmt in ("%Y-%m-%d", "%Y-%m", "%b %Y", "%B %Y"):
-        try:
-            parsed = datetime.strptime(text, fmt)
-            return parsed.strftime("%Y-%m-%d")
-        except ValueError:
-            pass
+        try: return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+        except ValueError: pass
     return None
 
 
 def _date(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value[:10], "%Y-%m-%d")
-    except ValueError:
-        return None
+    if not value: return None
+    try: return datetime.strptime(value[:10], "%Y-%m-%d")
+    except ValueError: return None
 
 
 def _norm(value: Any) -> str:

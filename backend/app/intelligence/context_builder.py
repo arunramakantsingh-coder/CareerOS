@@ -102,8 +102,10 @@ def _profile_facts(profile: CandidateProfile) -> list[KnowledgeItem]:
         "summary": profile.summary,
         "linkedin_url": profile.linkedin_url,
     }
+    # CandidateProfile currently has no field-level provenance/confirmation flags.
+    # Do not claim these values are user-confirmed; keep the baseline conservative.
     return [
-        KnowledgeItem("profile", key, value, trust_state="USER-CONFIRMED" if value else "MISSING")
+        KnowledgeItem("profile", key, value, trust_state="EXTRACTED")
         for key, value in values.items()
         if value
     ]

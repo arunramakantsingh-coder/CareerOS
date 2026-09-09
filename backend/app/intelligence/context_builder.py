@@ -58,7 +58,10 @@ def build_professional_identity_context(
         "personas": [],
     }
 
-    personas = db.query(Persona).filter(Persona.candidate_id == candidate_id).all()
+    # Persona is keyed to the application user in the current model rather than
+    # directly to CandidateProfile. Keep this lookup user-scoped and do not invent
+    # a candidate_id relationship that does not exist in the schema.
+    personas = db.query(Persona).filter(Persona.user_id == profile.user_id).all()
     context["personas"] = [
         {
             "id": str(persona.id),

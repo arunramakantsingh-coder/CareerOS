@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.intelligence.contracts import IntelligenceRequest
 from app.intelligence.engine import engine
-from app.intelligence.identity_reconciliation import EMPLOYMENT_SCHEMA, _apply_experiences, _sanitize_experience
+from app.intelligence.identity_reconciliation import EMPLOYMENT_SCHEMA, _sanitize_experience
+from app.intelligence.safe_employment_reconciliation import apply_experiences_source_scoped
 from app.models.candidate_certification import CandidateCertification
 from app.models.candidate_education import CandidateEducation
 from app.models.candidate_profile import CandidateProfile
@@ -67,7 +68,7 @@ def _persist(document: Document, profile: CandidateProfile, payload: dict[str, A
         if value not in (None,"",[]) and getattr(profile,field,None) in (None,"",0): setattr(profile,field,value)
     profile.industries=_merge(profile.industries or [],p.get("industries") or [])
     raw=[_sanitize_experience(x) for x in payload.get("experiences",[]) if isinstance(x,dict)]
-    applied,review,protected=_apply_experiences(document,raw,db)
+    applied,review,protected=apply_experiences_source_scoped(document,raw,db)
     for x in payload.get("skills",[]): _skill(document,profile,x,db)
     for x in payload.get("certifications",[]): _cert(document,profile,x,db)
     for x in payload.get("education",[]): _edu(document,profile,x,db)

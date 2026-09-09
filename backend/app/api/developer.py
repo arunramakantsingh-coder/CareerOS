@@ -23,10 +23,66 @@ from app.models.v01_product import AuditLog
 router = APIRouter(prefix="/developer", tags=["developer"])
 STORAGE_ROOT = Path(os.getenv("CAREEROS_STORAGE_ROOT", "/app/storage/documents")).resolve()
 RESET_SCOPES = {"career_data", "documents", "personas", "connections", "all"}
+GIT_ROOT = Path(os.getenv("CAREEROS_GIT_ROOT", "/workspace")).resolve()
 
 
 class ResetRequest(BaseModel):
     scope: Literal["career_data", "documents", "personas", "connections", "all"] = "career_data"
+
+
+def _git_metadata() -> tuple[str, str]:
+    """Resolve Git metadata without requiring Git to be installed in the runtime image.
+
+    Deployment environments can inject CAREEROS_GIT_BRANCH/CAREEROS_GIT_COMMIT directly.
+    Local development may expose the repository at CAREEROS_GIT_ROOT (read-only), in which
+    case we resolve HEAD and the corresponding ref/packed-ref from .git metadata.
+    """
+    configured_branch = os.getenv("CAREEROS_GIT_BRANCH")
+    configured_commit = os.getenv("CAREEROS_GIT_COMMIT")
+    if configured_branch and configured_commit:
+        return configured_branch, configured_commit
+
+    git_path = GIT_ROOT / ".git"
+    if not git_path.exists():
+        return configured_branch or "unknown", configured_commit or "unknown"
+
+    try:
+        if git_path.is_file():
+            git_dir_line = git_path.read_text(encoding="utf-8").strip()
+            if not git_dir_line.startswith("gitdir:"):
+                return configured_branch or "unknown", configured_commit or "unknown"
+            git_dir = Path(git_dir_line.split(":", 1)[1].strip())
+            if not git_dir.is_absolute():
+                git_dir = (git_path.parent / git_dir).resolve()
+        else:
+            git_dir = git_path
+
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        branch = configured_branch or "unknown"
+        commit = configured_commit or "unknown"
+
+        if head.startswith("ref: "):
+            ref = head[5:].strip()
+            if ref.startswith("refs/heads/") and not configured_branch:
+                branch = ref.removeprefix("refs/heads/")
+            ref_file = git_dir / ref
+            if ref_file.is_file() and not configured_commit:
+                commit = ref_file.read_text(encoding="utf-8").strip()
+            elif not configured_commit:
+                packed_refs = git_dir / "packed-refs"
+                if packed_refs.is_file():
+                    for line in packed_refs.read_text(encoding="utf-8").splitlines():
+                        if line and not line.startswith("#") and not line.startswith("^"):
+                            sha, packed_ref = line.split(" ", 1)
+                            if packed_ref.strip() == ref:
+                                commit = sha
+                                break
+        elif head and not configured_commit:
+            branch = branch if branch != "unknown" else "detached"
+            commit = head
+        return branch, commit
+    except (OSError, ValueError):
+        return configured_branch or "unknown", configured_commit or "unknown"
 
 
 def _remove_document_files(documents: list[Document]) -> int:
@@ -72,12 +128,13 @@ def developer_status(user: User = Depends(require_developer)):
 @router.get("/diagnostics")
 def developer_diagnostics(user: User = Depends(require_developer), db: Session = Depends(get_db)):
     profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == user.id).first()
+    git_branch, git_commit = _git_metadata()
     return {
         "developer_mode": True,
         "application": os.getenv("CAREEROS_APP_NAME", "CareerOS"),
         "version": os.getenv("CAREEROS_VERSION", "development"),
-        "git_commit": os.getenv("CAREEROS_GIT_COMMIT", "unknown"),
-        "git_branch": os.getenv("CAREEROS_GIT_BRANCH", "unknown"),
+        "git_commit": git_commit,
+        "git_branch": git_branch,
         "environment": os.getenv("CAREEROS_ENV", "development"),
         "profile_present": bool(profile),
         "profile_id": str(profile.id) if profile else None,

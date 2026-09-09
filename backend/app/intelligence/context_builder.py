@@ -142,8 +142,11 @@ def _experience_item(item: ProfessionalExperience, db: Session) -> KnowledgeItem
         "achievements": item.achievements or [],
         "industry": item.industry,
     }
-    state = normalize_trust_state("USER-CONFIRMED" if item.is_reconciled else "EXTRACTED")
-    return KnowledgeItem("employment", str(item.id), value, _evidence(item.candidate_id, "employment", item.id, db), state)
+    if getattr(item, "reconciliation_status", None) == "ai_reconciled":
+        state = "INFERRED"
+    else:
+        state = "USER-CONFIRMED" if item.is_reconciled else "EXTRACTED"
+    return KnowledgeItem("employment", str(item.id), value, _evidence(item.candidate_id, "employment", item.id, db), normalize_trust_state(state))
 
 
 def _skill_item(item: CandidateSkill, db: Session) -> KnowledgeItem:

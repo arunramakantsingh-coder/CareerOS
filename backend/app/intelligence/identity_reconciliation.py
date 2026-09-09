@@ -218,12 +218,16 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
             db.add(target)
 
         target.company = exp["organization"]
+        target.client = exp["client"]
         target.title = exp["title"]
         target.start_date = _date(exp["start_date"])
         target.end_date = _date(exp["end_date"])
         target.is_current = exp["is_current"]
         target.responsibilities = exp["responsibilities"]
         target.achievements = exp["achievements"]
+        target.technologies = exp["technologies"]
+        target.industries = exp["industries"]
+        target.industry = exp["industries"][0] if exp["industries"] else target.industry
         target.source_type = "document"
         target.source_id = document.id
         target.is_reconciled = confidence >= 0.85
@@ -231,7 +235,13 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
         db.flush()
 
         _ensure_evidence(document, target, confidence, exp["evidence_excerpt"], db)
-        item = {"experience_id": str(target.id), "organization": target.company, "title": target.title, "confidence": confidence}
+        item = {
+            "experience_id": str(target.id),
+            "organization": target.company,
+            "client": target.client,
+            "title": target.title,
+            "confidence": confidence,
+        }
         (applied if confidence >= 0.85 else needs_review).append(item)
 
     return applied, needs_review, protected
@@ -259,6 +269,7 @@ def _best_match(exp: dict[str, Any], rows: list[ProfessionalExperience], minimum
         score = 0.0
         if _norm(row.company) == _norm(exp["organization"]): score += 0.55
         if _norm(row.title) == _norm(exp["title"]): score += 0.30
+        if exp["client"] and _norm(row.client) == _norm(exp["client"]): score += 0.10
         if exp["start_date"] and row.start_date and exp["start_date"][:7] == row.start_date.strftime("%Y-%m"): score += 0.10
         if exp["end_date"] and row.end_date and exp["end_date"][:7] == row.end_date.strftime("%Y-%m"): score += 0.05
         if score > best[0]: best = (score, row)

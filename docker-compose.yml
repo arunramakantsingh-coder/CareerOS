@@ -19,7 +19,7 @@ services:
     build: ./services/intelligence
     environment:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
       INTELLIGENCE_TIMEOUT_SECONDS: ${INTELLIGENCE_TIMEOUT_SECONDS:-180}
     extra_hosts:
       - "host.docker.internal:host-gateway"

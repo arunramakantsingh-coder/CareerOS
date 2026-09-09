@@ -78,11 +78,12 @@ def retrieve_career_knowledge(db: Session, user_id: UUID, query: str, top_k: int
         profile.full_name, profile.title, profile.summary, profile.location, profile.seniority,
         profile.years_experience, profile.industries,
     ) if value)
-    _append(candidates, _score(query_tokens, profile_text), "profile", profile.id, profile_text, None, None, 0.82, "INFERRED", query_tokens, allowed_types)
+    _append(candidates, _score(query_tokens, profile_text), "profile", profile.id, profile_text, None, None, 0.82, "EXTRACTED", query_tokens, allowed_types)
 
     for item in db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == profile.id).all():
         text = " | ".join(str(value) for value in (item.company, item.title, item.location, item.industry, item.responsibilities, item.achievements) if value)
-        _append(candidates, _score(query_tokens, text), "employment", item.id, text, item.source_id, "employment", 0.8, "EXTRACTED", query_tokens, allowed_types)
+        trust = "USER-CONFIRMED" if item.is_reconciled else "EXTRACTED"
+        _append(candidates, _score(query_tokens, text), "employment", item.id, text, item.source_id, "employment", 0.8, trust, query_tokens, allowed_types)
 
     for item in db.query(CandidateSkill).filter(CandidateSkill.candidate_id == profile.id).all():
         text = " | ".join(str(value) for value in (item.name, item.category, item.proficiency, item.years_experience) if value)
@@ -98,7 +99,7 @@ def retrieve_career_knowledge(db: Session, user_id: UUID, query: str, top_k: int
 
     for item in db.query(Document).filter(Document.candidate_id == profile.id).all():
         metadata = item.source_metadata or {}
-        representation = metadata.get("representation") if isinstance(metadata, dict) else None
+        representation = metadata.get("career_os_representation") if isinstance(metadata, dict) else None
         if isinstance(representation, dict):
             document_text = representation.get("markdown") or representation.get("text") or ""
         else:

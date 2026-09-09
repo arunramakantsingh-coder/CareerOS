@@ -28,6 +28,8 @@ def test_ai_reconciliation_sanitizes_structured_experience():
     assert value["title"] == "SR. CYBER SECURITY ARCHITECT"
     assert value["start_date"] == "2025-08-01"
     assert value["responsibilities"] == ["Governance"]
+    assert value["technologies"] == ["Sentinel", "AlgoSec"]
+    assert value["industries"] == ["Banking"]
     assert value["confidence"] == 0.93
 
 

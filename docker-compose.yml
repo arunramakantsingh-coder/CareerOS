@@ -44,11 +44,13 @@ services:
       DEVELOPER_EMAILS: ${DEVELOPER_EMAILS:-[]}
       INTELLIGENCE_BASE_URL: http://intelligence:8100
       INTELLIGENCE_STATUS_TIMEOUT_SECONDS: ${INTELLIGENCE_STATUS_TIMEOUT_SECONDS:-8}
+      CAREEROS_GIT_ROOT: /workspace
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - ./data/documents:/app/storage/documents
+      - ./:/workspace:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -192,17 +192,6 @@ Return JSON only matching the supplied schema.
 
     payload = _parse(result.result)
     counts = _persist_profile(document, profile, payload, db)
-
-    metadata = dict(document.source_metadata or {})
-    metadata["ai_profile_extraction"] = {
-        "status": "completed",
-        "engine_version": result.engine_version,
-        "provider": result.provider,
-        "model": result.model,
-        "trace_id": str(result.trace_id) if result.trace_id else None,
-        "counts": counts,
-    }
-    document.source_metadata = metadata
     profile.reconciliation_status = "complete" if counts["needs_review"] == 0 else "conflicting"
     db.commit()
 
@@ -233,23 +222,12 @@ def _persist_profile(
 
     profile.industries = _merge_strings(profile.industries or [], values.get("industries") or [])
 
-    experiences = [_normalize_experience(item, document.id) for item in payload.get("experiences", []) if isinstance(item, dict)]
+    experiences = [_normalize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]
     experience_counts = _upsert_experiences(profile.id, document, experiences, db)
 
-    skill_count = 0
-    for item in payload.get("skills", []):
-        if _upsert_skill(profile, document, item, db):
-            skill_count += 1
-
-    certification_count = 0
-    for item in payload.get("certifications", []):
-        if _upsert_certification(profile, document, item, db):
-            certification_count += 1
-
-    education_count = 0
-    for item in payload.get("education", []):
-        if _upsert_education(profile, document, item, db):
-            education_count += 1
+    skill_count = sum(_upsert_skill(profile, document, item, db) for item in payload.get("skills", []) if isinstance(item, dict))
+    certification_count = sum(_upsert_certification(profile, document, item, db) for item in payload.get("certifications", []) if isinstance(item, dict))
+    education_count = sum(_upsert_education(profile, document, item, db) for item in payload.get("education", []) if isinstance(item, dict))
 
     return {
         "experiences": experience_counts["written"],
@@ -257,19 +235,12 @@ def _persist_profile(
         "skills": skill_count,
         "certifications": certification_count,
         "education": education_count,
-        "personas": 0,
     }
 
 
-def _upsert_experiences(
-    candidate_id,
-    document: Document,
-    experiences: list[dict[str, Any]],
-    db: Session,
-) -> dict[str, int]:
+def _upsert_experiences(candidate_id, document: Document, experiences: list[dict[str, Any]], db: Session) -> dict[str, int]:
     written = 0
     needs_review = 0
-
     for exp in experiences:
         confidence = float(exp.get("confidence") or 0.0)
         target = (
@@ -282,13 +253,14 @@ def _upsert_experiences(
             )
             .first()
         )
-
         if target is None:
             target = _find_existing_profile_experience(candidate_id, exp, db)
-
         if target is None:
             target = ProfessionalExperience(candidate_id=candidate_id)
             db.add(target)
+
+        if target.reconciliation_status == "user_confirmed":
+            continue
 
         target.company = exp["organization"]
         target.client = exp.get("client")
@@ -306,11 +278,8 @@ def _upsert_experiences(
         target.is_reconciled = confidence >= 0.85
         target.reconciliation_status = "ai_reconciled" if confidence >= 0.85 else "ai_review"
         db.flush()
-
         written += 1
-        if confidence < 0.85:
-            needs_review += 1
-
+        needs_review += int(confidence < 0.85)
     return {"written": written, "needs_review": needs_review}
 
 
@@ -325,20 +294,18 @@ def _find_existing_profile_experience(candidate_id, exp: dict[str, Any], db: Ses
         .all()
     )
     for row in rows:
+        if row.reconciliation_status == "user_confirmed":
+            continue
         if _same_month(row.start_date, exp.get("start_date")) and _same_month(row.end_date, exp.get("end_date")):
             return row
     return None
 
 
-def _upsert_skill(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> bool:
+def _upsert_skill(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> int:
     name = _clean(item.get("name"))
     if not name:
-        return False
-    row = (
-        db.query(CandidateSkill)
-        .filter(CandidateSkill.candidate_id == profile.id, CandidateSkill.name.ilike(name))
-        .first()
-    )
+        return 0
+    row = db.query(CandidateSkill).filter(CandidateSkill.candidate_id == profile.id, CandidateSkill.name.ilike(name)).first()
     if row is None:
         row = CandidateSkill(candidate_id=profile.id, name=name, source_type="cv_ai", source_id=document.id)
         db.add(row)
@@ -348,37 +315,32 @@ def _upsert_skill(profile: CandidateProfile, document: Document, item: dict[str,
     row.last_used = row.last_used or _clean(item.get("last_used"))
     row.confidence = max(float(row.confidence or 0.0), float(item.get("confidence") or 0.0))
     db.flush()
-    return True
+    return 1
 
 
-def _upsert_certification(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> bool:
+def _upsert_certification(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> int:
     name = _clean(item.get("name"))
     if not name:
-        return False
-    row = (
-        db.query(CandidateCertification)
-        .filter(CandidateCertification.candidate_id == profile.id, CandidateCertification.name.ilike(name))
-        .first()
-    )
+        return 0
+    row = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == profile.id, CandidateCertification.name.ilike(name)).first()
     if row is None:
         row = CandidateCertification(candidate_id=profile.id, name=name, issuer=_clean(item.get("issuer")), source_type="cv_ai", source_id=document.id)
         db.add(row)
-    if not row.issuer:
-        row.issuer = _clean(item.get("issuer"))
+    row.issuer = row.issuer or _clean(item.get("issuer"))
     row.issue_date = row.issue_date or _parse_date(item.get("issue_date"))
     row.expiry_date = row.expiry_date or _parse_date(item.get("expiry_date"))
     row.credential_reference = row.credential_reference or _clean(item.get("credential_reference"))
     row.credential_url = row.credential_url or _clean(item.get("credential_url"))
     row.confidence = max(float(row.confidence or 0.0), float(item.get("confidence") or 0.0))
     db.flush()
-    return True
+    return 1
 
 
-def _upsert_education(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> bool:
+def _upsert_education(profile: CandidateProfile, document: Document, item: dict[str, Any], db: Session) -> int:
     institution = _clean(item.get("institution"))
     degree = _clean(item.get("degree"))
     if not institution or not degree:
-        return False
+        return 0
     row = (
         db.query(CandidateEducation)
         .filter(
@@ -397,10 +359,10 @@ def _upsert_education(profile: CandidateProfile, document: Document, item: dict[
     row.grade = row.grade or _clean(item.get("grade"))
     row.confidence = max(float(row.confidence or 0.0), float(item.get("confidence") or 0.0))
     db.flush()
-    return True
+    return 1
 
 
-def _normalize_experience(item: dict[str, Any], document_id) -> dict[str, Any]:
+def _normalize_experience(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "organization": _clean(item.get("organization")) or "Unknown organization",
         "client": _clean(item.get("client")),

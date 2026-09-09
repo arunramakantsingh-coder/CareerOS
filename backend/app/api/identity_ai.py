@@ -10,12 +10,16 @@ from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
 from app.models.user import User
 
-router = APIRouter(prefix="/identity", tags=["professional-identity-ai"])
+router = APIRouter(prefix="/identity", tags=["professional-profile-ai"])
 
 
 @router.post("/documents/{document_id}/ai-reconcile")
-def ai_reconcile_document(document_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """AI-first ingestion: understand the complete CV and populate CareerOS identity facts."""
+def ai_reconcile_document(
+    document_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Build the Professional Profile from a CV; other document types use Document Vault processing."""
     profile = db.query(CandidateProfile).filter(
         CandidateProfile.user_id == user.id,
         CandidateProfile.is_active.is_(True),
@@ -29,8 +33,12 @@ def ai_reconcile_document(document_id: UUID, user: User = Depends(get_current_us
     ).first()
     if not document:
         raise HTTPException(404, "Document not found")
-    if document.document_category not in {"cv", "employment", "other"}:
-        raise HTTPException(400, "AI CV ingestion is only available for CV or employment documents")
+
+    if (document.document_category or "").lower() != "cv":
+        raise HTTPException(
+            400,
+            "This endpoint is only for CV profile building. Other documents belong to Document Vault processing.",
+        )
 
     try:
         return ingest_cv_with_ai(document, profile, db)

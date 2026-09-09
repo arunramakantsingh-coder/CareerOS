@@ -1,6 +1,6 @@
 """Add semantic employment fields for AI reconciliation.
 
-Revision ID: 017_m02_employment_semantic_fields
+Revision ID: 017_m02_employment_semantic
 Revises: 016_m02_identity_intelligence
 """
 from typing import Sequence, Union
@@ -8,7 +8,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "017_m02_employment_semantic_fields"
+revision: str = "017_m02_employment_semantic"
 down_revision: Union[str, None] = "016_m02_identity_intelligence"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

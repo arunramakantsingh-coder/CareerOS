@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from uuid import uuid4
+import inspect
 
 from app.intelligence import safe_employment_reconciliation as safe
 from app.models.professional_experience import ProfessionalExperience
@@ -30,25 +31,6 @@ def _experience(**overrides):
 
 def test_mutable_lookup_is_scoped_to_document_and_ai_statuses(monkeypatch):
     document = _document()
-    db = SimpleNamespace()
-    query = SimpleNamespace()
-    query.filter = lambda *criteria: query
-    query.all = lambda: []
-    db.query = lambda model: query
-
-    captured = {}
-
-    def capture_best(exp, rows, minimum):
-        captured["rows"] = rows
-        captured["minimum"] = minimum
-        return None
-
-    monkeypatch.setattr(safe, "_best_match", capture_best)
-    safe._find_mutable_experience_source_scoped(
-        _experience(), document.candidate_id, document.id, db
-    )
-
-    # Rebuild the query with a recorder so we can inspect the actual SQLAlchemy criteria.
     criteria = []
 
     class RecordingQuery:
@@ -59,8 +41,9 @@ def test_mutable_lookup_is_scoped_to_document_and_ai_statuses(monkeypatch):
         def all(self):
             return []
 
-    recording = RecordingQuery()
-    db.query = lambda model: recording
+    db = SimpleNamespace(query=lambda model: RecordingQuery())
+    monkeypatch.setattr(safe, "_best_match", lambda exp, rows, minimum: None)
+
     safe._find_mutable_experience_source_scoped(
         _experience(), document.candidate_id, document.id, db
     )
@@ -80,7 +63,6 @@ def test_apply_creates_new_source_owned_record_without_deleting(monkeypatch):
     db = SimpleNamespace(
         add=added.append,
         flush=lambda: None,
-        query=lambda model: None,
     )
 
     monkeypatch.setattr(safe, "_find_verified_match", lambda exp, candidate_id, db: None)
@@ -181,9 +163,6 @@ def test_apply_protects_user_confirmed_record(monkeypatch):
 
 
 def test_safe_writer_contains_no_destructive_delete_path():
-    source = safe.apply_experiences_source_scoped.__doc__ or ""
-    assert "delete" in source.lower()
-    import inspect
-
     implementation = inspect.getsource(safe.apply_experiences_source_scoped)
     assert "db.delete(" not in implementation
+    assert ".delete(" not in implementation

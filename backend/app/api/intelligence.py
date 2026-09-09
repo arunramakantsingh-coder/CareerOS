@@ -8,6 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_user
+from app.intelligence.contracts import IntelligenceRequest, RetrievalRequest
+from app.intelligence.engine import engine
+from app.intelligence.registry import registry
 from app.models.user import User
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
@@ -42,7 +45,31 @@ async def status(_: User = Depends(get_current_user)):
 
 @router.get("/capabilities")
 async def capabilities(_: User = Depends(get_current_user)):
-    return await _call("/v1/capabilities")
+    return {**await _call("/v1/capabilities"), "tools": registry.list()}
+
+
+@router.get("/tools")
+async def tools(_: User = Depends(get_current_user)):
+    return {"tools": registry.list()}
+
+
+@router.post("/execute")
+async def execute(request: IntelligenceRequest, _: User = Depends(get_current_user)):
+    try:
+        return await engine.execute(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/retrieve")
+async def retrieve(request: RetrievalRequest, _: User = Depends(get_current_user)):
+    """Contract endpoint for future hybrid CareerOS retrieval.
+
+    The retrieval index is intentionally not fabricated here. Until the pgvector/search
+    layer is connected, this endpoint returns an explicit empty result rather than
+    pretending that model output is authoritative evidence.
+    """
+    return {"query": request.query, "results": [], "retrieval_ready": False}
 
 
 @router.post("/generate")

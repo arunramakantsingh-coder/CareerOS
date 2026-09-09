@@ -82,7 +82,7 @@ def build_professional_identity_context(
                 "detected_type": document.detected_type,
                 "verification_status": document.verification_status,
                 "processing_stage": document.processing_stage,
-                "representation": (document.source_metadata or {}).get("careeros_representation"),
+                "representation": (document.source_metadata or {}).get("career_os_representation"),
             }
             for document in db.query(Document).filter(Document.candidate_id == candidate_id).all()
         ]

@@ -14,6 +14,7 @@ on:
       - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
       - 'feature/m02-developer-control-layer-20260906'
       - 'feature/m02-intelligence-foundation-20260908'
+      - 'feature/m02-deterministic-foundation-repair-20260908'
 
 jobs:
   backend:
@@ -31,7 +32,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt pytest
       - run: python -m compileall -q app
-      - run: pytest -q tests/test_identity_intelligence.py tests/test_migration_bootstrap.py
+      - run: pytest -q tests/test_identity_intelligence.py tests/test_intelligence_engine_contracts.py tests/test_migration_bootstrap.py
 
   intelligence:
     runs-on: ubuntu-latest

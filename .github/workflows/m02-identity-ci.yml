@@ -34,7 +34,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt pytest
       - run: python -m compileall -q app
-      - run: pytest -q tests/test_identity_intelligence.py tests/test_intelligence_engine_contracts.py tests/test_intelligence_retrieval.py tests/test_migration_bootstrap.py
+      - run: pytest -q tests/test_identity_intelligence.py tests/test_intelligence_engine_contracts.py tests/test_intelligence_retrieval.py tests/test_identity_ai_reconciliation.py tests/test_migration_bootstrap.py
 
   intelligence:
     runs-on: ubuntu-latest

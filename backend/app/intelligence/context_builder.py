@@ -27,18 +27,13 @@ def build_professional_identity_context(
         return {"profile": None, "facts": [], "documents": [], "personas": []}
 
     facts: list[dict[str, Any]] = []
-    for item in _profile_facts(profile):
-        facts.append(item.to_dict())
-
+    for item in _profile_facts(profile): facts.append(item.to_dict())
     for experience in db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == candidate_id).all():
         facts.append(_experience_item(experience, db).to_dict())
-
     for skill in db.query(CandidateSkill).filter(CandidateSkill.candidate_id == candidate_id).all():
         facts.append(_skill_item(skill, db).to_dict())
-
     for cert in db.query(CandidateCertification).filter(CandidateCertification.candidate_id == candidate_id).all():
         facts.append(_cert_item(cert, db).to_dict())
-
     for education in db.query(CandidateEducation).filter(CandidateEducation.candidate_id == candidate_id).all():
         facts.append(_education_item(education, db).to_dict())
 
@@ -58,9 +53,6 @@ def build_professional_identity_context(
         "personas": [],
     }
 
-    # Persona is keyed to the application user in the current model rather than
-    # directly to CandidateProfile. Keep this lookup user-scoped and do not invent
-    # a candidate_id relationship that does not exist in the schema.
     personas = db.query(Persona).filter(Persona.user_id == profile.user_id).all()
     context["personas"] = [
         {
@@ -83,6 +75,7 @@ def build_professional_identity_context(
                 "verification_status": document.verification_status,
                 "processing_stage": document.processing_stage,
                 "representation": (document.source_metadata or {}).get("career_os_representation"),
+                "ai_reconciliation": (document.source_metadata or {}).get("ai_reconciliation"),
             }
             for document in db.query(Document).filter(Document.candidate_id == candidate_id).all()
         ]
@@ -102,13 +95,7 @@ def _profile_facts(profile: CandidateProfile) -> list[KnowledgeItem]:
         "summary": profile.summary,
         "linkedin_url": profile.linkedin_url,
     }
-    # CandidateProfile currently has no field-level provenance/confirmation flags.
-    # Do not claim these values are user-confirmed; keep the baseline conservative.
-    return [
-        KnowledgeItem("profile", key, value, trust_state="EXTRACTED")
-        for key, value in values.items()
-        if value
-    ]
+    return [KnowledgeItem("profile", key, value, trust_state="EXTRACTED") for key, value in values.items() if value]
 
 
 def _evidence(candidate_id: UUID, fact_type: str, fact_id: UUID, db: Session) -> tuple[EvidenceReference, ...]:
@@ -117,9 +104,8 @@ def _evidence(candidate_id: UUID, fact_type: str, fact_id: UUID, db: Session) ->
         CareerFactEvidence.fact_type == fact_type,
         CareerFactEvidence.fact_id == fact_id,
     ).all()
-    result: list[EvidenceReference] = []
-    for link in links:
-        result.append(EvidenceReference(
+    return tuple(
+        EvidenceReference(
             document_id=str(link.document_id),
             fact_type=link.fact_type,
             fact_id=str(link.fact_id),
@@ -127,26 +113,34 @@ def _evidence(candidate_id: UUID, fact_type: str, fact_id: UUID, db: Session) ->
             confidence=link.confidence,
             trust_state="EXTRACTED",
             source_type="document",
-        ))
-    return tuple(result)
+        )
+        for link in links
+    )
 
 
 def _experience_item(item: ProfessionalExperience, db: Session) -> KnowledgeItem:
     value = {
         "company": item.company,
+        "client": getattr(item, "client", None),
         "title": item.title,
         "start_date": item.start_date.isoformat() if item.start_date else None,
         "end_date": item.end_date.isoformat() if item.end_date else None,
         "is_current": item.is_current,
         "responsibilities": item.responsibilities or [],
         "achievements": item.achievements or [],
+        "technologies": getattr(item, "technologies", None) or [],
+        "industries": getattr(item, "industries", None) or [],
         "industry": item.industry,
     }
     if getattr(item, "reconciliation_status", None) == "ai_reconciled":
         state = "INFERRED"
     else:
         state = "USER-CONFIRMED" if item.is_reconciled else "EXTRACTED"
-    return KnowledgeItem("employment", str(item.id), value, _evidence(item.candidate_id, "employment", item.id, db), normalize_trust_state(state))
+    return KnowledgeItem(
+        "employment", str(item.id), value,
+        _evidence(item.candidate_id, "employment", item.id, db),
+        normalize_trust_state(state),
+    )
 
 
 def _skill_item(item: CandidateSkill, db: Session) -> KnowledgeItem:

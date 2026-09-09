@@ -19,8 +19,8 @@ services:
     build: ./services/intelligence
     environment:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
-      INTELLIGENCE_TIMEOUT_SECONDS: ${INTELLIGENCE_TIMEOUT_SECONDS:-90}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      INTELLIGENCE_TIMEOUT_SECONDS: ${INTELLIGENCE_TIMEOUT_SECONDS:-180}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     expose:
@@ -44,11 +44,14 @@ services:
       DEVELOPER_EMAILS: ${DEVELOPER_EMAILS:-[]}
       INTELLIGENCE_BASE_URL: http://intelligence:8100
       INTELLIGENCE_STATUS_TIMEOUT_SECONDS: ${INTELLIGENCE_STATUS_TIMEOUT_SECONDS:-8}
+      INTELLIGENCE_EXECUTION_TIMEOUT_SECONDS: ${INTELLIGENCE_EXECUTION_TIMEOUT_SECONDS:-180}
+      CAREEROS_GIT_ROOT: /workspace
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - ./data/documents:/app/storage/documents
+      - ./:/workspace:ro
     depends_on:
       postgres:
         condition: service_healthy

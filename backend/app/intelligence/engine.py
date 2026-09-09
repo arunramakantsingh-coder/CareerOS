@@ -19,7 +19,9 @@ class IntelligenceEngine:
 
     def __init__(self) -> None:
         self.base_url = os.getenv("INTELLIGENCE_BASE_URL", "http://intelligence:8100").rstrip("/")
-        self.timeout = float(os.getenv("INTELLIGENCE_STATUS_TIMEOUT_SECONDS", "90"))
+        # Keep lightweight status probes separate from model-execution timeout. Local CPU
+        # inference can legitimately take much longer than an availability check.
+        self.timeout = float(os.getenv("INTELLIGENCE_EXECUTION_TIMEOUT_SECONDS", "180"))
 
     async def execute(self, request: IntelligenceRequest) -> IntelligenceResult:
         tools = registry.validate_requested(request.tools)

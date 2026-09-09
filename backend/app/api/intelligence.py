@@ -6,11 +6,14 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.core.database import get_db
 from app.core.security import get_current_user
 from app.intelligence.contracts import IntelligenceRequest, RetrievalRequest
 from app.intelligence.engine import engine
 from app.intelligence.registry import registry
+from app.intelligence.retrieval import retrieve_career_knowledge
 from app.models.user import User
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
@@ -62,14 +65,19 @@ async def execute(request: IntelligenceRequest, _: User = Depends(get_current_us
 
 
 @router.post("/retrieve")
-async def retrieve(request: RetrievalRequest, _: User = Depends(get_current_user)):
-    """Contract endpoint for future hybrid CareerOS retrieval.
-
-    The retrieval index is intentionally not fabricated here. Until the pgvector/search
-    layer is connected, this endpoint returns an explicit empty result rather than
-    pretending that model output is authoritative evidence.
-    """
-    return {"query": request.query, "results": [], "retrieval_ready": False}
+async def retrieve(
+    request: RetrievalRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return tenant-scoped CareerOS knowledge with evidence references."""
+    return retrieve_career_knowledge(
+        db=db,
+        user_id=current_user.id,
+        query=request.query,
+        top_k=request.top_k,
+        filters=request.filters,
+    )
 
 
 @router.post("/generate")

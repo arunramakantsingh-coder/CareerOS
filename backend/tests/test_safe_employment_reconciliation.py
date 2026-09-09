@@ -52,7 +52,8 @@ def test_mutable_lookup_is_scoped_to_document_and_ai_statuses(monkeypatch):
     assert keys == {"candidate_id", "source_id", "is_reconciled", "reconciliation_status"}
     assert any(criterion.left.key == "source_id" and criterion.right.value == document.id for criterion in criteria)
     assert any(criterion.left.key == "candidate_id" and criterion.right.value == document.candidate_id for criterion in criteria)
-    assert any(criterion.left.key == "is_reconciled" and criterion.right.value is False for criterion in criteria)
+    is_reconciled_criterion = next(c for c in criteria if c.left.key == "is_reconciled")
+    assert str(is_reconciled_criterion).endswith("IS false")
     status_criterion = next(c for c in criteria if c.left.key == "reconciliation_status")
     assert set(status_criterion.right.value) == {"extracted", "ai_reconciled", "ai_review"}
 

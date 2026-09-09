@@ -2,6 +2,10 @@ from types import SimpleNamespace
 from uuid import uuid4
 import inspect
 
+# Import all relationship targets needed to configure the shared SQLAlchemy mapper
+# registry when this focused test suite instantiates ProfessionalExperience.
+import app.models.external_identity  # noqa: F401
+
 from app.intelligence import safe_employment_reconciliation as safe
 from app.models.professional_experience import ProfessionalExperience
 

@@ -28,6 +28,7 @@ class RetrievalRequest(BaseModel):
 
 class IntelligenceRequest(BaseModel):
     task: str = Field(min_length=1, max_length=12000)
+    task_type: str | None = Field(default=None, max_length=80)
     context: dict[str, Any] = Field(default_factory=dict)
     output_schema: dict[str, Any] | None = None
     tools: list[str] = Field(default_factory=list, max_length=20)
@@ -53,3 +54,5 @@ class IntelligenceResult(BaseModel):
     model: str | None = None
     provider: str | None = None
     trace_id: UUID | None = None
+    fallback_used: bool = False
+    provider_attempts: list[dict[str, Any]] = Field(default_factory=list)

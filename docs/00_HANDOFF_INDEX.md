@@ -51,7 +51,7 @@ Understand Career
 
 ## 5. Supporting cross-cutting engines
 
-- AI Orchestration
+- **Global Intelligence Engine / AI Orchestration** — one provider-neutral gateway and routing layer for all AI workloads
 - Truth & Compliance
 - Skill Gap Intelligence
 - Remote Intelligence
@@ -60,6 +60,8 @@ Understand Career
 - Security / Governance
 - Analytics / Learning
 - Source/Connector Layer
+
+The Global Intelligence Engine is platform-wide and multi-user. Individual modules must not call AI vendors directly. Provider credentials are platform configuration, stored encrypted at rest, and managed by authorized developer/admin users from Project Control.
 
 ## 6. Version map
 

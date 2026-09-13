@@ -41,6 +41,137 @@ Global Mobility is deliberately later than the core job-hunting loop.
 - Global Mobility Engine
 - Career CRM & Outcome Engine
 
+## Global Intelligence Engine — Platform Architecture
+
+The **Global Intelligence Engine** is a platform-level, provider-neutral service used by all CareerOS AI workloads. It is not a CV-only feature, not a personal-user setting, and not a collection of direct vendor integrations inside individual modules.
+
+### Canonical flow
+```text
+CareerOS module
+    ↓
+CareerOS Intelligence Service
+    ↓
+Global Intelligence Gateway / Router
+    ↓
+Provider adapter
+    ↓
+Selected model/provider
+```
+
+All AI-processing modules must use this path, including:
+- CV/profile ingestion and reconciliation
+- document intelligence and evidence understanding
+- profile completeness and reconciliation intelligence
+- persona generation
+- job/JD intelligence and Job DNA
+- matching, scoring and recommendations
+- skill-gap intelligence
+- company and recruiter intelligence
+- research and global opportunity intelligence
+- application assistance
+- interview preparation and interview intelligence
+- future career planning, notifications and AI capabilities
+
+**Rule:** Product modules must not call OpenAI, Gemini, Claude, OpenRouter, Ollama, Mistral, xAI, Groq, DeepSeek or another AI vendor directly. Vendor-specific code belongs behind the Intelligence Gateway.
+
+### Provider-neutral registry
+The platform must support multiple local and paid providers without changing consuming modules. The initial provider catalog includes:
+- Ollama
+- OpenRouter
+- OpenAI
+- Google Gemini
+- Anthropic Claude
+- Mistral AI
+- xAI
+- Groq
+- DeepSeek
+
+Provider/model selection is an Intelligence Engine policy, not frontend business logic. Providers expose normalized request/response contracts through adapters.
+
+### Persistent credentials
+Provider credentials are **global platform configuration**, not user career data.
+
+Requirements:
+- credentials stored encrypted at rest
+- API secrets never returned to the browser/API responses
+- UI exposes only configured state and limited key metadata such as last four characters
+- Save Credentials is separate from Activate Provider
+- activating a previously configured provider must never require re-entering its API key
+- a dedicated production encryption secret must be supported
+- local development may safely derive encryption from the existing application secret when no dedicated key is configured
+- future integrations may move secret storage to a managed secret store without changing the provider contract
+
+### Provider lifecycle
+```text
+Not configured
+      ↓
+Save Credentials
+      ↓
+Configured
+      ↓
+Test Connection
+      ↓
+Activate Provider
+      ↓
+Global Active Provider
+```
+
+Saving configuration does **not** implicitly change the active provider. Activation is explicit.
+
+### Routing and fallback
+The engine is designed for task-based routing rather than one permanent model for every workload. Future routing policy must consider:
+- task/capability
+- model quality and reasoning strength
+- structured-output support
+- privacy requirements
+- health and availability
+- latency
+- rate limits/quota
+- cost
+- context requirements
+- fallback policy
+
+The first implementation establishes the global provider registry and explicit activation boundary; advanced automatic routing/fallback remains a controlled extension and must not be presented as implemented before runtime support exists.
+
+### Global multi-user boundary
+The Intelligence Engine serves the CareerOS platform and therefore supports many authorized users. Provider configuration is global/platform-level while career context remains tenant/user scoped.
+
+AI processing must never cross user/tenant boundaries. The engine is not the system of record: structured profile, career, evidence, job or application changes remain controlled by CareerOS application services, validation, provenance and human-approval rules.
+
+### Project Control ownership
+Global Intelligence configuration belongs under:
+
+```text
+Project Control
+└── Global Intelligence Engine
+    ├── Overview
+    ├── Providers
+    ├── Models
+    ├── Routing
+    ├── Fallback
+    ├── Usage & Cost
+    ├── Health / Latency / Quota
+    ├── Credentials
+    └── Policies
+```
+
+Only authorized developer/admin users may manage platform AI credentials and activation. Normal users consume the resulting intelligence capabilities without seeing platform secrets.
+
+### Future operational controls
+The architecture should leave room for:
+- per-task routing policies
+- provider/model health monitoring
+- latency and failure metrics
+- token and cost accounting
+- quota/rate-limit controls
+- provider fallback chains
+- model capability discovery
+- data residency/privacy policies
+- audit history and credential rotation
+- tenant-aware usage/entitlements for future SaaS
+
+These are planned controls unless explicitly implemented and verified.
+
 ## Functional Stages
 
 ### Stage 0 — Foundation & Control

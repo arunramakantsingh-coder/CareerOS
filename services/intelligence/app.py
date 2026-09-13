@@ -8,23 +8,14 @@ from pydantic import BaseModel, Field
 
 from providers import ProviderError, build_provider
 
-app = FastAPI(
-    title="CareerOS Intelligence Engine",
-    version="0.2.0",
-    description="Provider-neutral AI gateway for CareerOS.",
-)
-
+app = FastAPI(title="CareerOS Intelligence Engine", version="0.3.0", description="Provider-neutral global AI gateway for CareerOS.")
 REQUEST_TIMEOUT = float(os.getenv("INTELLIGENCE_TIMEOUT_SECONDS", "300"))
 CONFIG = {
     "AI_PROVIDER": os.getenv("AI_PROVIDER", "ollama"),
     "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"),
-    "OLLAMA_MODEL": os.getenv("OLLAMA_MODEL", ""),
-    "OPENROUTER_BASE_URL": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-    "OPENROUTER_API_KEY": os.getenv("OPENROUTER_API_KEY", ""),
-    "OPENROUTER_MODEL": os.getenv("OPENROUTER_MODEL", "openrouter/free"),
-    "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
-    "GEMINI_MODEL": os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+    "OLLAMA_MODEL": os.getenv("OLLAMA_MODEL", "gemma3:4b"),
 }
+SUPPORTED_PROVIDERS = ["ollama", "openrouter", "openai", "gemini", "anthropic", "mistral", "xai", "groq", "deepseek"]
 
 
 class GenerateRequest(BaseModel):
@@ -34,60 +25,55 @@ class GenerateRequest(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     provider: str | None = None
     model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 class ConfigureRequest(BaseModel):
-    provider: str = Field(pattern="^(ollama|openrouter|gemini)$")
+    provider: str = Field(min_length=2, max_length=50)
     model: str | None = None
     api_key: str | None = None
     base_url: str | None = None
 
 
-def _provider_config(provider_name: str) -> dict[str, str]:
+def _provider_config(request: GenerateRequest | None = None, provider_name: str | None = None) -> dict[str, str]:
     config = dict(CONFIG)
-    config["AI_PROVIDER"] = provider_name
+    config["AI_PROVIDER"] = (provider_name or request.provider if request and request.provider else CONFIG["AI_PROVIDER"]).strip().lower()
+    if request:
+        if request.model:
+            config["model"] = request.model
+        if request.api_key:
+            config["api_key"] = request.api_key
+        if request.base_url:
+            config["base_url"] = request.base_url.rstrip("/")
     return config
 
 
 def _configured_provider(name: str):
-    return build_provider(_provider_config(name), REQUEST_TIMEOUT)
+    return build_provider(_provider_config(provider_name=name), REQUEST_TIMEOUT)
 
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
     provider_name = CONFIG["AI_PROVIDER"].strip().lower()
     try:
-        provider = _configured_provider(provider_name)
-        provider_health = await provider.health()
+        provider_health = await _configured_provider(provider_name).health()
     except ProviderError as exc:
-        return {
-            "status": "unconfigured",
-            "provider": provider_name,
-            "error": str(exc),
-        }
-
+        return {"status": "unconfigured", "provider": provider_name, "error": str(exc)}
     ready = provider_health.get("configured") and provider_health.get("reachable") is not False
-    return {
-        "status": "ready" if ready else "configured" if provider_health.get("configured") else "unconfigured",
-        **provider_health,
-    }
+    return {"status": "ready" if ready else "configured" if provider_health.get("configured") else "unconfigured", **provider_health}
 
 
 @app.get("/v1/providers")
 async def providers() -> dict[str, Any]:
     result: list[dict[str, Any]] = []
-    for name in ("ollama", "openrouter", "gemini"):
+    for name in SUPPORTED_PROVIDERS:
         try:
-            provider = _configured_provider(name)
-            item = await provider.health()
+            item = await _configured_provider(name).health()
         except ProviderError as exc:
-            item = {"provider": name, "configured": False, "error": str(exc)}
+            item = {"provider": name, "configured": False, "model": None, "reachable": False, "error": str(exc)}
         result.append(item)
-
-    return {
-        "active_provider": CONFIG["AI_PROVIDER"].strip().lower(),
-        "providers": result,
-    }
+    return {"active_provider": CONFIG["AI_PROVIDER"].strip().lower(), "providers": result}
 
 
 @app.get("/v1/capabilities")
@@ -95,79 +81,35 @@ async def capabilities() -> dict[str, Any]:
     active = CONFIG["AI_PROVIDER"].strip().lower()
     return {
         "provider": active,
-        "model": (
-            CONFIG["OLLAMA_MODEL"] if active == "ollama"
-            else CONFIG["OPENROUTER_MODEL"] if active == "openrouter"
-            else CONFIG["GEMINI_MODEL"]
-        ) or None,
-        "providers": ["ollama", "openrouter", "gemini"],
-        "capabilities": [
-            "structured_output",
-            "provider_routing",
-            "document_intelligence",
-            "search_reasoning",
-            "opportunity_reasoning",
-            "research_synthesis",
-        ],
+        "model": CONFIG.get("OLLAMA_MODEL") if active == "ollama" else None,
+        "providers": SUPPORTED_PROVIDERS,
+        "capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "multi_provider", "fallback_routing", "usage_policy_ready"],
     }
 
 
 @app.post("/v1/configure")
 async def configure(request: ConfigureRequest) -> dict[str, Any]:
     provider = request.provider.strip().lower()
-    if provider in {"openrouter", "gemini"} and not (request.api_key or CONFIG.get({"openrouter": "OPENROUTER_API_KEY", "gemini": "GEMINI_API_KEY"}[provider])):
-        raise HTTPException(status_code=400, detail=f"API key is required for {provider}")
-
-    if provider == "ollama":
-        if request.base_url:
-            CONFIG["OLLAMA_BASE_URL"] = request.base_url.rstrip("/")
-        if request.model:
-            CONFIG["OLLAMA_MODEL"] = request.model
-    elif provider == "openrouter":
-        if request.base_url:
-            CONFIG["OPENROUTER_BASE_URL"] = request.base_url.rstrip("/")
-        if request.api_key:
-            CONFIG["OPENROUTER_API_KEY"] = request.api_key
-        if request.model:
-            CONFIG["OPENROUTER_MODEL"] = request.model
-    else:
-        if request.api_key:
-            CONFIG["GEMINI_API_KEY"] = request.api_key
-        if request.model:
-            CONFIG["GEMINI_MODEL"] = request.model
-
+    if provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {provider}")
+    if provider != "ollama" and not request.api_key:
+        raise HTTPException(status_code=400, detail=f"API key is required for {provider} when configuring the gateway directly")
     CONFIG["AI_PROVIDER"] = provider
-    return {"active_provider": provider, "providers": (await providers())["providers"]}
+    if request.model:
+        CONFIG[f"{provider.upper()}_MODEL"] = request.model
+    if request.base_url:
+        CONFIG[f"{provider.upper()}_BASE_URL"] = request.base_url.rstrip("/")
+    if request.api_key:
+        CONFIG[f"{provider.upper()}_API_KEY"] = request.api_key
+    return {"active_provider": provider, "provider": await _configured_provider(provider).health()}
 
 
 @app.post("/v1/generate")
 async def generate(request: GenerateRequest) -> dict[str, Any]:
     provider_name = (request.provider or CONFIG["AI_PROVIDER"]).strip().lower()
-    config = _provider_config(provider_name)
-
-    if request.model:
-        if provider_name == "ollama":
-            config["OLLAMA_MODEL"] = request.model
-        elif provider_name == "openrouter":
-            config["OPENROUTER_MODEL"] = request.model
-        elif provider_name == "gemini":
-            config["GEMINI_MODEL"] = request.model
-
     try:
-        provider = build_provider(config, REQUEST_TIMEOUT)
-        result = await provider.generate(
-            prompt=request.prompt,
-            system=request.system,
-            response_schema=request.response_schema,
-            temperature=request.temperature,
-        )
+        provider = build_provider(_provider_config(request, provider_name), REQUEST_TIMEOUT)
+        result = await provider.generate(prompt=request.prompt, system=request.system, response_schema=request.response_schema, temperature=request.temperature)
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return {
-        "provider": result.provider,
-        "model": result.model,
-        "response": result.response,
-        "done": result.done,
-        "total_duration": result.total_duration,
-    }
+    return {"provider": result.provider, "model": result.model, "response": result.response, "done": result.done, "total_duration": result.total_duration}

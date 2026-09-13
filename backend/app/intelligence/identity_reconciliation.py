@@ -187,7 +187,7 @@ def _token_overlap(left: Any, right: Any) -> float:
 
 
 def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db: Session) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], int]:
-    """Safely reconcile employment. Source anchors are authoritative; an empty/partial AI result cannot delete employment."""
+    """Safely reconcile employment without deleting or overwriting user-confirmed records."""
     candidate_id = document.candidate_id
     incoming = [x for x in experiences if isinstance(x, dict)]
     source_text = (document.source_metadata or {}).get("extracted_text", "")
@@ -201,9 +201,9 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
     needs_review: list[dict[str, Any]] = []
     protected: list[dict[str, Any]] = []
     mutation_count = 0
-    existing = db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == candidate_id).all()
-    mutable_existing = [row for row in existing if not (row.is_reconciled and row.reconciliation_status == "user_confirmed")]
 
+    # Protection check MUST happen before loading the mutable working set.
+    # A verified/user-confirmed match is never passed into mutable reconciliation.
     for exp in incoming:
         confidence = _bounded_float(exp.get("confidence"), 0.0)
         verified = _find_verified_match(exp, candidate_id, db)
@@ -211,10 +211,18 @@ def _apply_experiences(document: Document, experiences: list[dict[str, Any]], db
             _ensure_evidence(document, verified, confidence, exp.get("evidence_excerpt"), db)
             protected.append({"experience_id": str(verified.id), "organization": verified.company, "title": verified.title, "confidence": confidence})
             continue
+
+        # Load only mutable records for the upsert path. Confirmed rows are excluded
+        # at the query result boundary as a second protection layer.
+        existing = db.query(ProfessionalExperience).filter(ProfessionalExperience.candidate_id == candidate_id).all()
+        mutable_existing = [row for row in existing if not (row.is_reconciled and row.reconciliation_status == "user_confirmed")]
+
         target = _best_match(exp, mutable_existing, minimum=0.75)
         if target is None:
             target = ProfessionalExperience(candidate_id=candidate_id)
-            db.add(target); mutable_existing.append(target); mutation_count += 1
+            db.add(target)
+            mutable_existing.append(target)
+            mutation_count += 1
         before = (target.company, target.client, target.title, target.start_date, target.end_date, target.is_current, target.responsibilities, target.achievements, target.technologies, target.industries)
         target.company = exp["organization"]
         target.client = exp["client"]

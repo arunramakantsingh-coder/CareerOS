@@ -4,130 +4,34 @@ import { useEffect, useMemo, useState } from 'react';
 import { CareerOSShell, PageHeader, Card, Badge, Button } from '@/components/CareerOSShell';
 import { apiClient } from '@/lib/api/client';
 
-type Provider = {
-  provider: string;
-  label: string;
-  category: string;
-  model?: string;
-  base_url?: string;
-  configured: boolean;
-  active: boolean;
-  priority: number;
-  capabilities?: string[];
-  api_key_present?: boolean;
-  api_key_last4?: string | null;
-  last_tested_at?: string | null;
-  last_test_status?: string | null;
-  last_error?: string | null;
-};
+type Provider = { provider:string; label:string; category:string; model?:string; base_url?:string; configured:boolean; active:boolean; priority:number; capabilities?:string[]; api_key_present?:boolean; api_key_last4?:string|null; last_tested_at?:string|null; last_test_status?:string|null; last_error?:string|null; routing_policy?:any; telemetry?:any };
+type Observability = { routing:any; usage:any; providers:Provider[] };
+const tasks=[['cv_extraction','CV extraction'],['profile_reconciliation','Profile reconciliation'],['document_classification','Document classification'],['persona_generation','Persona generation'],['jd_analysis','JD analysis'],['matching','Matching'],['research','Research'],['interview_intelligence','Interview intelligence'],['embedding','Embedding'],['bulk_processing','Bulk processing']];
 
-export default function IntelligenceEngine() {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [activeProvider, setActiveProvider] = useState('');
-  const [selected, setSelected] = useState('ollama');
-  const [form, setForm] = useState({ model: '', base_url: '', api_key: '', priority: 100 });
-  const [busy, setBusy] = useState('');
-  const [message, setMessage] = useState('');
-  const [status, setStatus] = useState<any>(null);
-
-  const load = async () => {
-    const [data, health] = await Promise.all([apiClient.intelligenceProviders(), apiClient.get('/api/v1/intelligence/status')]);
-    setProviders(data.providers || []);
-    setActiveProvider(data.active_provider || '');
-    setStatus(health);
-    const current = (data.providers || []).find((p: Provider) => p.provider === selected) || data.providers?.[0];
-    if (current) {
-      setSelected(current.provider);
-      setForm({ model: current.model || '', base_url: current.base_url || '', api_key: '', priority: current.priority || 100 });
-    }
-  };
-
-  useEffect(() => { load().catch((e: any) => setMessage(e.message || 'Unable to load Intelligence Engine')); }, []);
-
-  const current = useMemo(() => providers.find(p => p.provider === selected), [providers, selected]);
-  const selectProvider = (name: string) => {
-    const p = providers.find(x => x.provider === name);
-    if (!p) return;
-    setSelected(name);
-    setForm({ model: p.model || '', base_url: p.base_url || '', api_key: '', priority: p.priority || 100 });
-    setMessage('');
-  };
-
-  const save = async () => {
-    setBusy('save'); setMessage('');
-    try {
-      await apiClient.saveIntelligenceProvider({ provider: selected, model: form.model || undefined, base_url: form.base_url || undefined, api_key: form.api_key || undefined, priority: form.priority });
-      setForm(f => ({ ...f, api_key: '' }));
-      await load();
-      setMessage(`${current?.label || selected} credentials/configuration saved. The provider was not activated.`);
-    } catch (e: any) { setMessage(e.message || 'Unable to save provider'); } finally { setBusy(''); }
-  };
-
-  const test = async () => {
-    setBusy('test'); setMessage('');
-    try {
-      const result = await apiClient.testIntelligenceProvider({ provider: selected, model: form.model || undefined, base_url: form.base_url || undefined, api_key: form.api_key || undefined });
-      setForm(f => ({ ...f, api_key: '' }));
-      await load();
-      setMessage(`Connection test passed: ${result.provider} / ${result.model}`);
-    } catch (e: any) { setMessage(e.message || 'Provider test failed'); } finally { setBusy(''); }
-  };
-
-  const activate = async (name = selected) => {
-    setBusy(`activate:${name}`); setMessage('');
-    try {
-      const result = await apiClient.activateIntelligenceProvider(name);
-      await load();
-      setMessage(`${providers.find(p => p.provider === name)?.label || name} is now the global active AI provider.`);
-      setActiveProvider(result.active_provider);
-    } catch (e: any) { setMessage(e.message || 'Unable to activate provider'); } finally { setBusy(''); }
-  };
-
-  return <CareerOSShell>
-    <PageHeader eyebrow="Project Control · Global Intelligence" title="Global Intelligence Engine" description="One provider-neutral AI gateway for every CareerOS intelligence workload. Provider credentials are platform configuration, not user profile data." action={<Badge tone={status?.status === 'ready' ? 'good' : 'warn'}>{status?.status === 'ready' ? 'Gateway ready' : status?.status || 'Checking'}</Badge>} />
-
-    {message && <div className="mb-5 rounded-xl border bg-card px-4 py-3 text-sm">{message}</div>}
-
-    <div className="grid gap-4 md:grid-cols-4">
-      <Card><p className="text-xs text-muted-foreground">Global active provider</p><p className="mt-2 font-semibold">{activeProvider || 'Not selected'}</p></Card>
-      <Card><p className="text-xs text-muted-foreground">Gateway</p><p className="mt-2 font-semibold">{status?.status || 'Checking…'}</p></Card>
-      <Card><p className="text-xs text-muted-foreground">Supported providers</p><p className="mt-2 font-semibold">{providers.length}</p></Card>
-      <Card><p className="text-xs text-muted-foreground">Scope</p><p className="mt-2 font-semibold">Platform-wide</p></Card>
-    </div>
-
-    <Card className="mt-5" title="Provider registry">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {providers.map(p => <button key={p.provider} type="button" onClick={() => selectProvider(p.provider)} className={`rounded-2xl border p-4 text-left transition ${selected === p.provider ? 'border-primary bg-primary/5' : 'hover:bg-muted/40'}`}>
-          <div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{p.label}</p><p className="mt-1 text-[11px] uppercase tracking-[.12em] text-muted-foreground">{p.category}</p></div><Badge tone={p.active ? 'good' : p.configured ? 'blue' : 'muted'}>{p.active ? 'Active' : p.configured ? 'Configured' : 'Not configured'}</Badge></div>
-          <p className="mt-3 text-xs text-muted-foreground">{p.model || 'Model not selected'}</p>
-          {p.api_key_present && <p className="mt-1 text-[11px] text-muted-foreground">Key saved · ••••{p.api_key_last4}</p>}
-          <div className="mt-3 flex flex-wrap gap-1">{(p.capabilities || []).slice(0, 4).map(x => <Badge key={x}>{x}</Badge>)}</div>
-        </button>)}
-      </div>
-    </Card>
-
-    {current && <Card className="mt-5" title={`${current.label} configuration`}>
-      <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">Credentials are stored encrypted on the CareerOS platform. The API never returns the secret; the browser only sees whether a key exists and its last four characters. <strong>Save Credentials</strong> does not activate the provider.</div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div><label className="text-xs font-medium">Model</label><input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm" /></div>
-        <div><label className="text-xs font-medium">Priority</label><input type="number" min={1} max={1000} value={form.priority} onChange={e => setForm(f => ({ ...f, priority: Number(e.target.value) || 100 }))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm" /></div>
-        {selected !== 'gemini' && <div><label className="text-xs font-medium">Base URL</label><input value={form.base_url} onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm" /></div>}
-        {selected !== 'ollama' && <div><label className="text-xs font-medium">API key</label><input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))} placeholder={current.api_key_present ? 'Saved — enter only to replace' : 'Enter API key'} autoComplete="new-password" className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm" /></div>}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={save} disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save Credentials'}</Button>
-        <Button onClick={test} disabled={!!busy}>{busy === 'test' ? 'Testing…' : 'Test Connection'}</Button>
-        <Button onClick={() => activate()} disabled={!!busy || current.active}>{busy === `activate:${selected}` ? 'Activating…' : current.active ? 'Currently Active' : 'Activate Provider'}</Button>
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">Switching providers later only requires selecting a configured provider and pressing Activate. The saved key is reused.</p>
-    </Card>}
-
-    <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {['Task-based routing', 'Fallback routing', 'Usage & cost controls', 'Health / latency / quota'].map((x, i) => <Card key={x}><p className="font-semibold">{x}</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{i === 0 ? 'Route CV, documents, personas, jobs, research and interview work through one gateway.' : 'Planned control surface; no fake behavior is exposed until the corresponding runtime capability exists.'}</p></Card>)}
-    </div>
-
-    <Card className="mt-5" title="Architecture boundary">
-      <div className="space-y-2 text-sm leading-6 text-muted-foreground"><p><strong className="text-foreground">One gateway:</strong> CareerOS modules do not call individual AI vendors directly.</p><p><strong className="text-foreground">Global scope:</strong> the configured engine serves authorized CareerOS users; user career data remains tenant/user scoped.</p><p><strong className="text-foreground">AI is not the system of record:</strong> structured changes still pass through CareerOS application services, validation, provenance and human approval rules.</p></div>
-    </Card>
-  </CareerOSShell>;
+export default function IntelligenceEngine(){
+ const [providers,setProviders]=useState<Provider[]>([]);const [activeProvider,setActiveProvider]=useState('');const [selected,setSelected]=useState('ollama');const [form,setForm]=useState({model:'',base_url:'',api_key:'',priority:100});const [busy,setBusy]=useState('');const [message,setMessage]=useState('');const [status,setStatus]=useState<any>(null);const [obs,setObs]=useState<Observability|null>(null);const [dailyLimit,setDailyLimit]=useState('');
+ const load=async()=>{const [data,health,live]=await Promise.all([apiClient.intelligenceProviders(),apiClient.get('/api/v1/intelligence/status'),apiClient.intelligenceObservability()]);setProviders(data.providers||[]);setActiveProvider(data.active_provider||'');setStatus(health);setObs(live);const current=(data.providers||[]).find((p:Provider)=>p.provider===selected)||data.providers?.[0];if(current){setSelected(current.provider);setForm({model:current.model||'',base_url:current.base_url||'',api_key:'',priority:current.priority||100});setDailyLimit(current.routing_policy?.daily_request_limit?String(current.routing_policy.daily_request_limit):'')}};
+ useEffect(()=>{load().catch((e:any)=>setMessage(e.message||'Unable to load Intelligence Engine'))},[]);
+ useEffect(()=>{const timer=window.setInterval(()=>load().catch(()=>undefined),5000);return()=>window.clearInterval(timer)},[selected]);
+ const current=useMemo(()=>providers.find(p=>p.provider===selected),[providers,selected]);
+ const selectProvider=(name:string)=>{const p=providers.find(x=>x.provider===name);if(!p)return;setSelected(name);setForm({model:p.model||'',base_url:p.base_url||'',api_key:'',priority:p.priority||100});setDailyLimit(p.routing_policy?.daily_request_limit?String(p.routing_policy.daily_request_limit):'');setMessage('')};
+ const save=async()=>{setBusy('save');setMessage('');try{await apiClient.saveIntelligenceProvider({provider:selected,model:form.model||undefined,base_url:form.base_url||undefined,api_key:form.api_key||undefined,priority:form.priority});setForm(f=>({...f,api_key:''}));await load();setMessage(`${current?.label||selected} credentials/configuration saved. The provider was not activated.`)}catch(e:any){setMessage(e.message||'Unable to save provider')}finally{setBusy('')}};
+ const test=async()=>{setBusy('test');setMessage('');try{const result=await apiClient.testIntelligenceProvider({provider:selected,model:form.model||undefined,base_url:form.base_url||undefined,api_key:form.api_key||undefined});setForm(f=>({...f,api_key:''}));await load();setMessage(`Connection test passed: ${result.provider} / ${result.model}`)}catch(e:any){setMessage(e.message||'Provider test failed')}finally{setBusy('')}};
+ const activate=async()=>{setBusy('activate');setMessage('');try{const result=await apiClient.activateIntelligenceProvider(selected);await load();setActiveProvider(result.active_provider);setMessage(`${current?.label||selected} is now the global active AI provider. Deterministic fallback is enabled.`)}catch(e:any){setMessage(e.message||'Unable to activate provider')}finally{setBusy('')}};
+ const savePolicy=async()=>{setBusy('policy');try{await apiClient.updateIntelligenceRoutingPolicy({provider:selected,fallback_enabled:true,daily_request_limit:dailyLimit?Number(dailyLimit):null});await load();setMessage(`Runtime policy updated for ${current?.label||selected}.`)}catch(e:any){setMessage(e.message||'Unable to update runtime policy')}finally{setBusy('')}};
+ const liveProviders=obs?.providers||providers;const usage=obs?.usage||{};const activeLive=liveProviders.find(p=>p.active);
+ return <CareerOSShell>
+  <PageHeader eyebrow="Project Control · Global Intelligence" title="Global Intelligence Engine" description="One provider-neutral AI gateway for every CareerOS intelligence workload. Provider credentials are platform configuration, not user profile data." action={<Badge tone={status?.status==='ready'?'good':'warn'}>{status?.status==='ready'?'Gateway ready':status?.status||'Checking'}</Badge>}/>
+  {message&&<div className="mb-5 rounded-xl border bg-card px-4 py-3 text-sm">{message}</div>}
+  <div className="grid gap-4 md:grid-cols-4"><Card><p className="text-xs text-muted-foreground">Global active provider</p><p className="mt-2 font-semibold">{activeProvider||'Not selected'}</p></Card><Card><p className="text-xs text-muted-foreground">Gateway</p><p className="mt-2 font-semibold">{status?.status||'Checking…'}</p></Card><Card><p className="text-xs text-muted-foreground">Live requests</p><p className="mt-2 font-semibold">{usage.requests??0}</p></Card><Card><p className="text-xs text-muted-foreground">Fallbacks</p><p className="mt-2 font-semibold">{usage.fallback_requests??0}</p></Card></div>
+  <Card className="mt-5" title="Provider registry"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{providers.map(p=><button key={p.provider} type="button" onClick={()=>selectProvider(p.provider)} className={`rounded-2xl border p-4 text-left transition ${selected===p.provider?'border-primary bg-primary/5':'hover:bg-muted/40'}`}><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{p.label}</p><p className="mt-1 text-[11px] uppercase tracking-[.12em] text-muted-foreground">{p.category}</p></div><Badge tone={p.active?'good':p.configured?'blue':'muted'}>{p.active?'Active':p.configured?'Configured':'Not configured'}</Badge></div><p className="mt-3 text-xs text-muted-foreground">{p.model||'Model not selected'}</p>{p.api_key_present&&<p className="mt-1 text-[11px] text-muted-foreground">Key saved · ••••{p.api_key_last4}</p>}<div className="mt-3 flex flex-wrap gap-1">{(p.capabilities||[]).slice(0,5).map(x=><Badge key={x}>{x}</Badge>)}</div></button>)}</div></Card>
+  {current&&<Card className="mt-5" title={`${current.label} configuration`}><div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">Credentials are encrypted at rest. The API never returns the secret. Save and Activate remain separate operations.</div><div className="mt-4 grid gap-3 md:grid-cols-2"><div><label className="text-xs font-medium">Model</label><input value={form.model} onChange={e=>setForm(f=>({...f,model:e.target.value}))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm"/></div><div><label className="text-xs font-medium">Priority</label><input type="number" min={1} max={1000} value={form.priority} onChange={e=>setForm(f=>({...f,priority:Number(e.target.value)||100}))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm"/></div>{selected!=='gemini'&&<div><label className="text-xs font-medium">Base URL</label><input value={form.base_url} onChange={e=>setForm(f=>({...f,base_url:e.target.value}))} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm"/></div>}{selected!=='ollama'&&<div><label className="text-xs font-medium">API key</label><input type="password" value={form.api_key} onChange={e=>setForm(f=>({...f,api_key:e.target.value}))} placeholder={current.api_key_present?'Saved — enter only to replace':'Enter API key'} autoComplete="new-password" className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm"/></div>}</div><div className="mt-4 flex flex-wrap gap-2"><Button onClick={save} disabled={!!busy}>{busy==='save'?'Saving…':'Save Credentials'}</Button><Button onClick={test} disabled={!!busy}>{busy==='test'?'Testing…':'Test Connection'}</Button><Button onClick={activate} disabled={!!busy||current.active}>{busy==='activate'?'Activating…':current.active?'Currently Active':'Activate Provider'}</Button></div><p className="mt-3 text-xs text-muted-foreground">Switching providers later only requires selecting a configured provider and pressing Activate. The saved key is reused.</p></Card>}
+  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+   <Card title="Task-based routing"><p className="text-sm text-muted-foreground">Real deterministic routing selects providers by task capability, then priority. The active provider is preferred when compatible.</p><div className="mt-4 space-y-2">{tasks.map(([key,label])=><div key={key} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"><span>{label}</span><span className="text-xs text-muted-foreground">{(obs?.routing?.tasks?.[key]||[]).join(' + ')||'general'}</span></div>)}</div></Card>
+   <Card title="Fallback routing"><p className="text-sm text-muted-foreground">Fallback is real and only occurs after a provider request fails or is blocked by policy. Each attempt is recorded in provider telemetry.</p><div className="mt-4 rounded-xl border p-4"><div className="flex justify-between text-sm"><span>Active provider</span><strong>{activeLive?.label||activeProvider||'—'}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Fallback</span><Badge tone={obs?.routing?.fallback_enabled?'good':'warn'}>{obs?.routing?.fallback_enabled?'Enabled':'Disabled'}</Badge></div><div className="mt-2 flex justify-between text-sm"><span>Configured order</span><span className="text-xs text-muted-foreground">{(obs?.routing?.configured_provider_order||[]).join(' → ')||'—'}</span></div><div className="mt-2 flex justify-between text-sm"><span>Fallback requests</span><strong>{usage.fallback_requests??0}</strong></div></div></Card>
+   <Card title="Usage & cost controls"><p className="text-sm text-muted-foreground">Usage is recorded at the provider boundary. Daily request limits are enforced before a provider call; token cost remains unavailable when the provider does not report token usage.</p><div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Requests</p><p className="mt-1 text-lg font-semibold">{usage.requests??0}</p></div><div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Tokens reported</p><p className="mt-1 text-lg font-semibold">{usage.total_tokens??0}</p></div><div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Estimated cost</p><p className="mt-1 text-lg font-semibold">{liveProviders.some(p=>p.telemetry?.estimated_cost!==undefined)?`$${liveProviders.reduce((n,p)=>n+Number(p.telemetry?.estimated_cost||0),0).toFixed(4)}`:'Not reported'}</p></div></div><div className="mt-4 flex flex-wrap items-end gap-3"><div className="min-w-48"><label className="text-xs font-medium">Daily request limit for {current.label}</label><input type="number" min={1} placeholder="No limit" value={dailyLimit} onChange={e=>setDailyLimit(e.target.value)} className="mt-1 w-full rounded-xl border bg-background px-3 py-2 text-sm"/></div><Button onClick={savePolicy} disabled={!!busy}>{busy==='policy'?'Applying…':'Apply usage policy'}</Button></div></Card>
+   <Card title="Health / latency / quota"><p className="text-sm text-muted-foreground">Live telemetry is stored per configured provider. Provider-side quota is shown only where the provider exposes it; CareerOS limits are shown separately.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b"><th className="px-2 py-2">Provider</th><th className="px-2 py-2">Health</th><th className="px-2 py-2">Avg</th><th className="px-2 py-2">Last</th><th className="px-2 py-2">Errors</th><th className="px-2 py-2">Daily</th></tr></thead><tbody>{liveProviders.map(p=>{const t=p.telemetry||{};const limit=p.routing_policy?.daily_request_limit;return <tr key={p.provider} className="border-b last:border-0"><td className="px-2 py-2 font-medium">{p.label}</td><td className="px-2 py-2"><Badge tone={p.last_test_status==='passed'||p.active?'good':p.configured?'blue':'muted'}>{p.configured?(p.last_test_status||'Ready'):'Not configured'}</Badge></td><td className="px-2 py-2">{t.avg_latency_ms?`${t.avg_latency_ms} ms`:'—'}</td><td className="px-2 py-2">{t.last_latency_ms?`${t.last_latency_ms} ms`:'—'}</td><td className="px-2 py-2">{t.failed_requests||0}</td><td className="px-2 py-2">{t.daily_requests||0}{limit?` / ${limit}`:''}</td></tr>})}</tbody></table></div></Card>
+  </div>
+  <Card className="mt-5" title="Architecture boundary"><div className="space-y-3 text-sm leading-6 text-muted-foreground"><p><strong className="text-foreground">One gateway:</strong> CareerOS modules do not call individual AI vendors directly.</p><p><strong className="text-foreground">Global scope:</strong> the configured engine serves authorized CareerOS users; user career data remains tenant/user scoped.</p><p><strong className="text-foreground">AI is not the system of record:</strong> AI produces candidate facts, classifications and recommendations. CareerOS application services remain authoritative for persistence, validation, provenance, permissions and state transitions. High-confidence source-backed CV extraction may be applied automatically by policy; ambiguous or conflicting results require review.</p></div></Card>
+ </CareerOSShell>;
 }

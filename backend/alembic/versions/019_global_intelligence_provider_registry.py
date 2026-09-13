@@ -1,16 +1,18 @@
-"""Create the global CareerOS Intelligence provider registry.
+"""Merge the global Intelligence registry with the existing M02 profile branch.
 
 Revision ID: 019_global_intelligence_provider_registry
-Revises: 018_m02_profile_sections
+Revises: 018_m02_profile_sections, 018_global_intelligence_provider_registry
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 
 revision: str = "019_global_intelligence_provider_registry"
-down_revision: Union[str, None] = "018_m02_profile_sections"
+down_revision: Union[str, tuple[str, str], None] = (
+    "018_m02_profile_sections",
+    "018_global_intelligence_provider_registry",
+)
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -20,35 +22,16 @@ def _has_table(name: str) -> bool:
 
 
 def upgrade() -> None:
-    if _has_table("intelligence_provider_configs"):
-        return
-
-    op.create_table(
-        "intelligence_provider_configs",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("provider", sa.String(50), nullable=False, unique=True),
-        sa.Column("label", sa.String(120), nullable=False),
-        sa.Column("category", sa.String(30), nullable=False, server_default="cloud"),
-        sa.Column("model", sa.String(255), nullable=True),
-        sa.Column("base_url", sa.String(500), nullable=True),
-        sa.Column("encrypted_api_key", sa.Text(), nullable=True),
-        sa.Column("api_key_last4", sa.String(8), nullable=True),
-        sa.Column("configured", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("active", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("priority", sa.Integer(), nullable=False, server_default="100"),
-        sa.Column("capabilities", sa.JSON(), nullable=True),
-        sa.Column("routing_policy", sa.JSON(), nullable=True),
-        sa.Column("last_tested_at", sa.String(40), nullable=True),
-        sa.Column("last_test_status", sa.String(30), nullable=True),
-        sa.Column("last_error", sa.Text(), nullable=True),
-        sa.Column("metadata", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now()),
-    )
-    op.create_index("idx_intelligence_provider_active", "intelligence_provider_configs", ["active"])
+    # The provider registry is created by 018_global_intelligence_provider_registry.
+    # This revision intentionally acts as the merge point for both 018 branches.
+    if not _has_table("intelligence_provider_configs"):
+        raise RuntimeError(
+            "Global Intelligence provider registry is missing; expected migration "
+            "018_global_intelligence_provider_registry to create it before the merge."
+        )
 
 
 def downgrade() -> None:
-    if _has_table("intelligence_provider_configs"):
-        op.drop_index("idx_intelligence_provider_active", table_name="intelligence_provider_configs")
-        op.drop_table("intelligence_provider_configs")
+    # The merge point owns no schema objects; the two parent revisions own their
+    # respective changes and Alembic will downgrade through them independently.
+    pass

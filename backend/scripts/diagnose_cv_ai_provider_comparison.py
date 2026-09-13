@@ -11,7 +11,6 @@ import json
 import sys
 import time
 from pathlib import Path
-from uuid import UUID
 
 import httpx
 
@@ -24,7 +23,7 @@ from app.intelligence.ai_cv_ingestion import SCHEMA, _parse
 from app.intelligence.credential_store import decrypt_secret
 from app.models.intelligence_provider import IntelligenceProviderConfig
 
-DOCUMENT_ID = UUID("d1307403-ae5b-41ad-b296-d007f91010b10b")
+CV_FILENAME = "Arun Singh - Network And Security Architect Consultent.pdf"
 GATEWAY_URL = "http://intelligence:8100/v1/generate"
 TIMEOUT_SECONDS = 180
 TASK = """Extract only the employment history from the supplied CV for diagnostic purposes.
@@ -85,12 +84,14 @@ def main() -> int:
     try:
         row = db.execute(
             __import__("sqlalchemy").text(
-                "SELECT original_filename, document_category, source_metadata FROM documents WHERE id = :id"
+                "SELECT id, original_filename, document_category, source_metadata "
+                "FROM documents WHERE original_filename = :filename "
+                "ORDER BY created_at DESC LIMIT 1"
             ),
-            {"id": str(DOCUMENT_ID)},
+            {"filename": CV_FILENAME},
         ).mappings().first()
         if row is None:
-            print("DOCUMENT NOT FOUND")
+            print(f"DOCUMENT NOT FOUND: {CV_FILENAME}")
             return 2
         metadata = row.get("source_metadata") or {}
         text = metadata.get("extracted_text", "") if isinstance(metadata, dict) else ""
@@ -105,6 +106,7 @@ def main() -> int:
             .all()
         )
         print(f"CV: {row['original_filename']}")
+        print(f"DOCUMENT ID: {row['id']}")
         print(f"TEXT: {len(text)} characters")
         print(f"CONFIGURED PROVIDERS: {len(providers)}")
         print("NOTE: no CareerOS persistence and no provider telemetry updates.\n")

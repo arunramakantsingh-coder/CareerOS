@@ -18,11 +18,21 @@ Git is the implementation history. The control plane is the continuity layer. Ru
 6. `/docs/AI_TAKEOVER/02_CURRENT_STATE_20260903.md`
 7. `/docs/AI_TAKEOVER/03_GIT_BRANCH_AND_RELEASE_CONTROL.md`
 8. `/docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
-9. `/docs/21_AI_TO_AI_COORDINATION_PROTOCOL.md`
-10. `/docs/22_CAREEROS_CURRENT_CONTROL_STATE.md`
-11. `/docs/23_CAREEROS_MODULE_VERSION_REGISTRY.md`
+9. `/docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`
+10. `/docs/DB_SCHEMA_BASELINE.md`
+11. `/docs/21_AI_TO_AI_COORDINATION_PROTOCOL.md`
+12. `/docs/22_CAREEROS_CURRENT_CONTROL_STATE.md`
+13. `/docs/23_CAREEROS_MODULE_VERSION_REGISTRY.md`
 
-Then inspect the actual Git branch, commit, diff, tests and runtime before making changes.
+## Database safety gate
+
+Before and after every material database-affecting change, agents MUST follow:
+
+- `docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`
+- `docs/DB_SCHEMA_BASELINE.md`
+- `backend/scripts/validate_database.py`
+
+Database migration validation is a release gate. Do not treat Docker startup failure as the first database validation step.
 
 ## Source-of-truth hierarchy
 

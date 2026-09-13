@@ -1,6 +1,6 @@
 """Create the global CareerOS Intelligence provider registry.
 
-Revision ID: 018_global_intelligence_provider_registry
+Revision ID: 018_intel_provider_registry
 Revises: 017_m02_employment_semantic_fields
 """
 from typing import Sequence, Union
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "018_global_intelligence_provider_registry"
+revision: str = "018_intel_provider_registry"
 down_revision: Union[str, None] = "017_m02_employment_semantic_fields"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

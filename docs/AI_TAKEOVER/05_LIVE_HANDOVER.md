@@ -4,183 +4,161 @@
 
 ## Snapshot
 
-- Date: 2026-09-13
+- Date: 2026-09-14
 - Active development branch: `feature/intelligence-provider-gateway-20260912`
-- Current branch HEAD: `a6a9b3566c4791753ee36f54de044269738fc0b4`
+- Current branch HEAD after documentation updates: `29104e0845a8c0ebe3bc5663e4fbf5e0344c1044`
 - Active product release: v0.2 Global Job Intelligence
-- Active work: Global Intelligence provider gateway + M02 database migration repair/safety
-- Current PR: **#25 — feat(intelligence): add provider-neutral AI gateway + DB safety**
+- Current work: Global Intelligence runtime + safe CV AI reconciliation + architecture/documentation reconciliation
+- Current PR: **#25 — feat(intelligence): global intelligence runtime + safe CV employment reconciliation**
 - PR state: OPEN / DRAFT
 - Release target: `release/v0.2-global-job-intelligence`
-- Overall status: **IMPLEMENTATION PRESENT / LOCAL DATABASE RUNTIME VALIDATION PENDING**
 
-## Current development model
+## Current architecture decision — authoritative
+
+CareerOS has evolved from the original deterministic extraction foundation toward a reusable Global Intelligence Engine. For the current M02 Professional Profile workflow, **AI semantic CV understanding is primary**.
 
 ```text
-Product Owner
-    ↓
-Lead AI / QA defines scope and acceptance
-    ↓
-Coding AI inspects GitHub + control plane
-    ↓
-Implementation on authorized branch
-    ↓
-Migration + schema validation when DB-affecting
-    ↓
-Tests / CI
-    ↓
-Human pulls exact branch and runs local Docker/browser acceptance
-    ↓
-Runtime evidence returns to Lead AI
-    ↓
-QA / release review
+CV Upload
+  ↓
+PDF/document text extraction
+  ↓
+Global Intelligence Engine
+  ↓
+AI semantic understanding of complete CV
+  ↓
+Structured candidate facts
+  ↓
+CareerOS validation / reconciliation / provenance / trust policy
+  ↓
+Professional Profile / Career Vault
 ```
 
-The human is the local runtime/operator and product owner. The coding AI should make source changes through the authorized repository workflow and provide exact local verification commands.
+Deterministic parsing remains supporting infrastructure for preprocessing, validation, normalization, source verification and safety. It must not become the primary CV-understanding mechanism or make CV ingestion depend on exact headings/regex structure.
 
-## Database safety control — permanent
+Personas are generated later from the completed Professional Profile/Career Vault. They are not generated during CV ingestion.
 
-All material PostgreSQL/Alembic changes are governed by:
+The authoritative decision record is:
+
+`docs/AI_TAKEOVER/07_ARCHITECTURE_EVOLUTION_AND_GLOBAL_INTELLIGENCE_RUNTIME.md`
+
+## Critical AI persistence safety rule
+
+AI is not the system of record. CareerOS application services own validation, reconciliation, provenance, permissions, state transitions and persistence.
+
+An empty AI section is never permission to delete existing facts.
+
+The recent P0 employment incident was:
+
+```text
+OpenRouter CV ingestion succeeded partially
+→ skills/certifications/education/projects extracted
+→ experiences returned as []
+→ old persistence path treated [] as authoritative
+→ existing employment records were removed
+```
+
+The current safety work prevents an empty AI employment result from becoming a destructive delete path. The employment safety test suite currently reports **5 passed** in the user's local run.
+
+Do not re-upload the existing CV or reset the database while investigating this incident.
+
+## Global Intelligence runtime — current target
+
+The Project Control → Intelligence surface is a real operational control plane, not merely a provider settings page.
+
+### 1. Task-based routing
+
+Deterministic routing based on task/capability, provider health, priority, cost policy, quota and data classification.
+
+Initial tasks:
+
+```text
+cv_extraction
+profile_reconciliation
+document_classification
+persona_generation
+jd_analysis
+matching
+research
+interview_intelligence
+embedding
+bulk_processing
+general
+```
+
+### 2. Fallback routing
+
+Ordered, policy-controlled fallback. Retry only retryable failures. Record every provider attempt, latency, error/reason and actual provider used. Never silently hide a fallback.
+
+Fallback must respect provider/data-classification policy.
+
+### 3. Usage & cost controls
+
+Central gateway attribution for request/trace ID, tenant/user, feature, task, provider, model, latency, status, token usage where reported, and cost only when reliably calculable.
+
+CareerOS request limits are distinct from provider-reported quota/credits. Never fabricate token counts or costs. Use explicit `Not reported`, `Unavailable` or `No data` states.
+
+### 4. Health / latency / quota
+
+Expose actual provider health, failures, fallback counts, latency and provider-reported quota/rate-limit information where available. P50/P95/P99 should only be shown when sufficient samples exist.
+
+## Current runtime implementation
+
+PR #25 contains the first operational implementation of:
+
+- provider-neutral registry and encrypted credentials;
+- separate Save Credentials / Activate lifecycle;
+- deterministic task-based routing;
+- fallback routing with attempt tracking;
+- request/failure/fallback/latency telemetry;
+- CareerOS daily request-limit enforcement;
+- Project Control observability;
+- explicit non-fabricated token/cost states;
+- asynchronous CV reconciliation job UX;
+- database migration compatibility/safety controls.
+
+Runtime telemetry currently reuses existing provider configuration metadata and the existing document processing-status JSON field to avoid a new migration for this milestone. Token/cost reporting remains dependent on provider gateway usage data; do not represent unavailable values as real measurements.
+
+## CV reconciliation job
+
+The current user-facing lifecycle is backend-driven:
+
+```text
+queued
+→ validating_document
+→ routing
+→ ai_processing
+→ reconciling_profile
+→ persisting
+→ completed / failed
+```
+
+The frontend must poll actual backend state and must not simulate progress with a timer.
+
+## Database safety / migration repair
+
+All material PostgreSQL/Alembic changes remain governed by:
 
 - `docs/AI_TAKEOVER/06_DATABASE_SAFETY.md`
 - `docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`
 - `docs/DB_SCHEMA_BASELINE.md`
 - `backend/scripts/validate_database.py`
 
-Database validation is now a release gate. Docker startup must not be the first place a migration defect is discovered.
-
-## Current migration graph
+Current migration graph:
 
 ```text
 016_m02_identity_intelligence
-                |
+        |
 017_m02_employment_semantic_fields
-          ______|________________
-         /                       \
-018_m02_profile_sections   018_global_intelligence_provider_registry
-         \                       /
-          \_____________________/
-                    |
-             019_intelligence_registry
+        |\
+        | \
+018_m02_profile_sections   018_intel_provider_registry
+        |                     |
+        +----------+----------+
+                   |
+          019_intelligence_registry
 ```
 
-The historical database state was verified to contain:
-
-```text
-017_m02_employment_semantic
-018_m02_profile_sections
-```
-
-The physical schema already contains the 017 employment semantic columns and 018 profile-section columns. `intelligence_provider_configs` was missing at the time of diagnosis.
-
-The migration bootstrap now contains a narrow compatibility path that verifies the 017 schema before normalizing only Alembic bookkeeping. It must not rerun the 017 schema DDL.
-
-## Database work implemented in this session
-
-- Added legacy revision compatibility in `backend/app/core/migrations.py`.
-- Added migration compatibility regression test in `backend/tests/test_migration_bootstrap.py`.
-- Added read-only structural validator: `backend/scripts/validate_database.py`.
-- Added mandatory procedure: `docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`.
-- Added structural baseline/control document: `docs/DB_SCHEMA_BASELINE.md`.
-- Added AI-agent database safety control: `docs/AI_TAKEOVER/06_DATABASE_SAFETY.md`.
-- Linked database safety controls into `.ai/README.md`.
-- Added fresh-DB and legacy-revision migration CI gates.
-- Updated PR #25 description to reflect database work.
-
-## Local database evidence before repair
-
-Verified from the user's local environment:
-
-```text
-alembic_version:
-017_m02_employment_semantic
-018_m02_profile_sections
-```
-
-Verified schema:
-
-```text
-professional_experiences:
-client
-technologies
-industries
-
-candidate_profiles:
-projects
-accomplishments
-
-intelligence_provider_configs:
-missing
-```
-
-The backend startup failure was:
-
-```text
-RevisionError: Requested revision 018_m02_profile_sections overlaps with
-other requested revisions 017_m02_employment_semantic_fields
-```
-
-This must be re-tested after pulling the current branch. No destructive DB operation has been authorized.
-
-## Required local acceptance after pull
-
-From:
-
-```powershell
-PS C:\Projects\v0.2-global-job-intelligence>
-```
-
-First verify repository state and protected files remain untouched.
-
-Then run the read-only pre-migration validator:
-
-```powershell
-docker compose run --rm backend python scripts/validate_database.py --phase pre-migration
-```
-
-Then rebuild/start the backend so the controlled migration compatibility path can execute.
-
-After startup/migration, run:
-
-```powershell
-docker compose run --rm backend python scripts/validate_database.py --phase post-migration
-```
-
-Then verify:
-
-```powershell
-docker compose run --rm backend python -c "from alembic.config import Config; from alembic import command; cfg=Config('alembic.ini'); command.current(cfg, verbose=True)"
-```
-
-Expected final migration state:
-
-```text
-019_intelligence_registry
-```
-
-Also verify:
-
-- `intelligence_provider_configs` exists;
-- important application row counts are unchanged;
-- backend starts;
-- `http://localhost:8000/api/v1/health` responds;
-- frontend remains usable;
-- relevant Intelligence provider diagnostics work;
-- protected untracked files remain untouched.
-
-## Safety restrictions
-
-Never use during this repair:
-
-```text
-docker compose down -v
-DROP TABLE
-TRUNCATE
-application-data DELETE
-alembic downgrade
-PostgreSQL volume recreation
-CV re-upload
-```
+No database reset, PostgreSQL volume recreation, destructive application-data delete, or CV re-upload is authorized for this work.
 
 Protected untracked files:
 
@@ -190,13 +168,54 @@ cv-extracted.txt
 openapi-check.json
 ```
 
-## Product safety
+## Runtime evidence already provided by the user
 
-- v0.1 remains frozen.
-- Do not merge PR #25 automatically.
-- Do not claim runtime verification without actual local output.
-- Do not move to later product modules merely because implementation exists.
+- Pre-migration database validator passed.
+- Backend successfully started after controlled migration repair and reached `019_intelligence_registry`.
+- Employment safety tests: `5 passed`.
+- Existing CV document ID: `d1307403-ae5b-41ad-b296-d007f910b10b`.
+- Existing OpenRouter AI ingestion metadata showed successful AI processing but `experiences: 0`, while also extracting 69 skills, 7 certifications, 2 education and 43 projects.
+- Standalone ORM diagnostics encountered an unrelated model-registration error for `ExternalIdentity`; this is not evidence that the CV AI workflow failed.
+- Direct deterministic employment-anchor extraction against `cv-extracted.txt` returned `ANCHOR COUNT: 0`. This is only evidence that the supporting anchor parser does not match that extracted text; it is **not** the primary CV intelligence architecture and should not drive the solution.
 
-## Exact next action
+## Immediate next engineering action
 
-Pull the current PR #25 branch locally, rebuild the backend, and return the actual output from the pre/post database validation, migration current state, backend health, and `git status --short`. Do not manually edit the database before the compatibility path has been tested.
+Investigate the AI-first CV ingestion path that produced `experiences = 0`.
+
+Inspect:
+
+1. the structured output schema for employment;
+2. the CV extraction prompt and task definition;
+3. the OpenRouter request/response normalization;
+4. the model response actually persisted in the document metadata;
+5. `_apply_experiences()` and surrounding reconciliation mapping;
+6. validation behavior for an empty AI section;
+7. provider/model behavior and fallback handling.
+
+The goal is:
+
+```text
+Existing CV
+→ Global Intelligence Engine
+→ complete structured profile
+→ safe validation/reconciliation
+→ Professional Profile / Career Vault
+```
+
+Do not make the deterministic employment anchor parser the primary fix.
+
+Do not delete or recreate existing employment records during debugging.
+
+## Documentation reconciliation completed
+
+Added:
+
+`docs/AI_TAKEOVER/07_ARCHITECTURE_EVOLUTION_AND_GLOBAL_INTELLIGENCE_RUNTIME.md`
+
+Updated:
+
+- `docs/00_HANDOFF_INDEX.md`
+- `.ai/README.md`
+- this live handover
+
+These documents now explicitly record the current AI-first CV decision and the four Global Intelligence runtime controls: task-based routing, fallback routing, usage & cost controls, and health/latency/quota.

@@ -16,13 +16,17 @@ class FakeInspector:
 
 
 class FakeConnection:
+    def __init__(self):
+        self.executed = []
+
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         return False
 
-    def execute(self, statement):
+    def execute(self, statement, params=None):
+        self.executed.append((str(statement), params))
         return None
 
 
@@ -98,3 +102,49 @@ def test_empty_database_uses_upgrade_head(monkeypatch):
     migrations.reconcile_database()
 
     assert calls == [("upgrade", "head")]
+
+
+def test_normalizes_legacy_017_without_rerunning_schema_migration(monkeypatch):
+    connection = FakeConnection()
+    monkeypatch.setattr(migrations, "engine", SimpleNamespace(
+        connect=lambda: connection,
+        begin=lambda: connection,
+    ))
+    monkeypatch.setattr(
+        migrations,
+        "_get_version_rows",
+        lambda: ["017_m02_employment_semantic", "018_m02_profile_sections"],
+    )
+    monkeypatch.setattr(
+        migrations,
+        "_has_columns",
+        lambda table, columns: table == "professional_experiences" and columns == migrations.EMPLOYMENT_SEMANTIC_COLUMNS,
+    )
+
+    class Revision:
+        def __init__(self, down_revision):
+            self.down_revision = down_revision
+
+    class FakeScript:
+        revisions = {
+            "017_m02_employment_semantic_fields": Revision("016_m02_identity_intelligence"),
+            "018_m02_profile_sections": Revision("017_m02_employment_semantic_fields"),
+        }
+
+        def get_revision(self, revision):
+            return self.revisions.get(revision)
+
+    monkeypatch.setattr(migrations.ScriptDirectory, "from_config", lambda cfg: FakeScript())
+
+    migrations._normalize_legacy_revision_state(SimpleNamespace())
+
+    statements = [statement for statement, _ in connection.executed]
+    assert any("DELETE FROM alembic_version" in statement for statement in statements)
+    assert any(
+        "INSERT INTO alembic_version" in statement and params == {"revision": "018_m02_profile_sections"}
+        for statement, params in connection.executed
+    )
+    assert not any(
+        params == {"revision": "017_m02_employment_semantic_fields"}
+        for _, params in connection.executed
+    )

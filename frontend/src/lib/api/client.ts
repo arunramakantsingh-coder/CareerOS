@@ -54,6 +54,8 @@ class ApiClient {
   connectionDiagnostics() { return this.get<any>('/api/v1/identity/connections/diagnostics'); }
   intelligenceProviders() { return this.get<any>('/api/v1/intelligence/providers'); }
   intelligenceObservability() { return this.get<any>('/api/v1/intelligence/observability'); }
+  intelligenceProviderHealth() { return this.get<any>('/api/v1/intelligence/providers/health'); }
+  runIntelligenceProviderHealthCheck(body: { provider?: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/health-check', body); }
   updateIntelligenceRoutingPolicy(body: { provider: string; fallback_enabled: boolean; daily_request_limit?: number | null }) { return this.post<any>('/api/v1/intelligence/routing/policy', body); }
   saveIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/save', body); }
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }

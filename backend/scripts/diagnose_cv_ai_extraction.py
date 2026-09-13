@@ -1,15 +1,15 @@
-"""Read-only diagnostic for inspecting the Global Intelligence CV extraction result.
-
-This script deliberately does not persist profile or employment changes. It loads the
-existing CV document, sends its extracted text through the current Intelligence Engine,
-and prints the parsed employment section plus basic payload diagnostics.
-"""
+"""Read-only diagnostic for inspecting the Global Intelligence CV extraction result."""
 from __future__ import annotations
 
 import asyncio
 import json
 import sys
+from pathlib import Path
 from uuid import UUID
+
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
 
 from app.core.database import SessionLocal
 from app.intelligence.ai_cv_ingestion import SCHEMA, _parse
@@ -57,7 +57,17 @@ def main() -> int:
             temperature=0.0,
         )
 
-        result = asyncio.run(engine.execute(request))
+        try:
+            result = asyncio.run(engine.execute(request))
+        except RuntimeError as exc:
+            if "asyncio.run() cannot be called" not in str(exc):
+                raise
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(engine.execute(request))
+            finally:
+                loop.close()
+
         print("STATUS:", result.status)
         print("PROVIDER:", result.provider)
         print("MODEL:", result.model)

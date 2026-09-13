@@ -17,6 +17,7 @@ from app.models.persona_skill_weight import PersonaSkillWeight
 from app.models.persona_suggestion import PersonaSuggestion
 from app.models.career_fact_evidence import CareerFactEvidence
 from app.models.email_connector_account import EmailConnectorAccount
+from app.models.external_identity import ExternalIdentity
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
 from app.models.extraction_result import ExtractionResult
@@ -55,7 +56,7 @@ from app.models.v01_product import Application, CompanyIntelligence, Interview, 
 __all__ = [
     "Base", "TimestampMixin", "User", "Tenant", "CareerProfile", "Employment", "Project", "Skill",
     "Certification", "Education", "Achievement", "Technology", "CareerEvidence", "CareerPreference",
-    "Persona", "PersonaSkillWeight", "PersonaSuggestion", "CareerFactEvidence", "EmailConnectorAccount",
+    "Persona", "PersonaSkillWeight", "PersonaSuggestion", "CareerFactEvidence", "EmailConnectorAccount", "ExternalIdentity",
     "CandidateProfile", "Document", "ExtractionResult", "ExtractionField", "ProfessionalExperience",
     "CandidateSkill", "CandidateCertification", "CandidateEducation", "Job", "JobDNA", "JobSkill",
     "JobResponsibility", "CapabilityTaxonomy", "Match", "MatchDimension", "MatchRecommendation",

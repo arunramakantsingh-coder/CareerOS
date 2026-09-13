@@ -32,11 +32,22 @@ TASK_REQUIREMENTS: dict[str, list[str]] = {
 
 
 class RoutedIntelligenceEngine:
-    """Safe runtime layer for routing, fallback, usage policy and provider telemetry."""
+    """Safe runtime layer for health-gated routing, fallback, usage and telemetry."""
 
     def __init__(self) -> None:
         self.base_url = os.getenv("INTELLIGENCE_BASE_URL", "http://intelligence:8100").rstrip("/")
         self.timeout = float(os.getenv("INTELLIGENCE_STATUS_TIMEOUT_SECONDS", "360"))
+        self.health_ttl = int(os.getenv("INTELLIGENCE_HEALTH_TTL_SECONDS", "900"))
+
+    def _health_is_fresh(self, row: IntelligenceProviderConfig) -> bool:
+        health = (row.metadata_json or {}).get("health") or {}
+        if health.get("status") != "healthy" or not health.get("checked_at"):
+            return False
+        try:
+            checked = datetime.fromisoformat(str(health["checked_at"]).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        return (datetime.now(timezone.utc) - checked).total_seconds() <= self.health_ttl
 
     def _candidate_rows(self, task_type: str) -> list[IntelligenceProviderConfig]:
         db = SessionLocal()
@@ -49,11 +60,14 @@ class RoutedIntelligenceEngine:
                 capabilities = set(row.capabilities or [])
                 return all(req in capabilities for req in requirements) if requirements else True
 
-            compatible_rows = [row for row in rows if compatible(row)]
-            if active in compatible_rows:
-                compatible_rows.remove(active)
-                return [active, *compatible_rows]
-            return compatible_rows or ([active] if active else rows)
+            # Health is a hard routing gate. Configuration alone never makes a
+            # provider eligible for an AI request. A provider must have a
+            # recent successful non-generative health check first.
+            healthy_rows = [row for row in rows if self._health_is_fresh(row) and compatible(row)]
+            if active in healthy_rows:
+                healthy_rows.remove(active)
+                return [active, *healthy_rows]
+            return healthy_rows
         finally:
             db.close()
 
@@ -105,7 +119,7 @@ class RoutedIntelligenceEngine:
             telemetry["output_tokens"] = int(telemetry.get("output_tokens") or 0) + int(output_tokens or 0)
             telemetry["total_tokens"] = telemetry["input_tokens"] + telemetry["output_tokens"]
             if input_tokens is not None or output_tokens is not None:
-                pricing = (metadata.get("pricing") or {})
+                pricing = metadata.get("pricing") or {}
                 in_rate = float(pricing.get("input_per_million") or 0)
                 out_rate = float(pricing.get("output_per_million") or 0)
                 cost = ((input_tokens or 0) / 1_000_000 * in_rate) + ((output_tokens or 0) / 1_000_000 * out_rate)
@@ -122,7 +136,7 @@ class RoutedIntelligenceEngine:
         task_type = str(payload.pop("task_type", "general") or "general").strip().lower()
         rows = self._candidate_rows(task_type)
         if not rows:
-            raise RuntimeError("No configured Intelligence provider is available for this task")
+            raise RuntimeError("No configured provider has a recent successful health check for this task")
         primary = rows[0]
         policy = self._policy(primary)
         candidates = rows if bool(policy.get("fallback_enabled", True)) else rows[:1]
@@ -148,7 +162,7 @@ class RoutedIntelligenceEngine:
                 error = str(exc)[:500]
                 self._record_telemetry(row.provider, row.model, elapsed_ms, False, error, index > 0)
                 attempts.append({"provider": row.provider, "status": "failed", "latency_ms": round(elapsed_ms, 1), "error": error})
-        error = attempts[-1].get("error") if attempts else "All configured providers are blocked by policy"
+        error = attempts[-1].get("error") if attempts else "All healthy providers are blocked by policy"
         raise RuntimeError(error)
 
     async def execute(self, request: IntelligenceRequest) -> IntelligenceResult:

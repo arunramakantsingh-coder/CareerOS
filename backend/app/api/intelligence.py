@@ -18,7 +18,7 @@ from app.models.user import User
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 INTELLIGENCE_BASE_URL = os.getenv("INTELLIGENCE_BASE_URL", "http://intelligence:8100").rstrip("/")
-TIMEOUT = float(os.getenv("INTELLIGENCE_STATUS_TIMEOUT_SECONDS", "8"))
+TIMEOUT = float(os.getenv("INTELLIGENCE_STATUS_TIMEOUT_SECONDS", "360"))
 
 
 class GenerateRequest(BaseModel):
@@ -26,6 +26,13 @@ class GenerateRequest(BaseModel):
     system: str | None = None
     response_schema: dict[str, Any] | None = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+
+
+class ProviderConfigureRequest(BaseModel):
+    provider: str = Field(pattern="^(ollama|openrouter|gemini)$")
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -37,6 +44,9 @@ async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None =
                 response = await client.get(f"{INTELLIGENCE_BASE_URL}{path}")
             response.raise_for_status()
             return response.json()
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.json().get("detail", exc.response.text) if exc.response is not None else str(exc)
+        raise HTTPException(status_code=exc.response.status_code if exc.response is not None else 503, detail=detail) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"Intelligence Engine unavailable: {exc}") from exc
 
@@ -44,6 +54,26 @@ async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None =
 @router.get("/status")
 async def status(_: User = Depends(get_current_user)):
     return await _call("/health")
+
+
+@router.get("/providers")
+async def providers(_: User = Depends(get_current_user)):
+    return await _call("/v1/providers")
+
+
+@router.post("/providers/configure")
+async def configure_provider(request: ProviderConfigureRequest, _: User = Depends(get_current_user)):
+    return await _call("/v1/configure", method="POST", payload=request.model_dump(exclude_none=True))
+
+
+@router.post("/providers/test")
+async def test_provider(request: ProviderConfigureRequest, _: User = Depends(get_current_user)):
+    await _call("/v1/configure", method="POST", payload=request.model_dump(exclude_none=True))
+    return await _call(
+        "/v1/generate",
+        method="POST",
+        payload={"prompt": "Reply with exactly: CAREEROS_AI_TEST_OK", "temperature": 0.0},
+    )
 
 
 @router.get("/capabilities")

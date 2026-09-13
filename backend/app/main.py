@@ -4,13 +4,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import health, health_check, auth, oauth, persona, persona_skill_weight, job, match, resume, job_source, discovery, remote, migration, candidate, document, document_intake, extraction, profile_intelligence, v01_product, identity, identity_ai, identity_jobs, developer, persona_builder, intelligence
 from app.core.config import settings
+from app.intelligence.engine import engine as legacy_engine
+from app.intelligence.engine_runtime import routed_engine
 from app.utils.logging import setup_logging
 
 setup_logging(settings.LOG_LEVEL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Keep the existing engine import contract intact while activating the new
+    # routed runtime. This bridge avoids a schema or migration change.
+    legacy_engine.generate_direct = routed_engine.generate_direct
+    legacy_engine.execute = routed_engine.execute
     logging.getLogger(__name__).info(f"Starting CareerOS API in {settings.ENVIRONMENT} mode")
+    logging.getLogger(__name__).info("Global Intelligence routed runtime enabled")
     yield
     logging.getLogger(__name__).info("Shutting down CareerOS API")
 

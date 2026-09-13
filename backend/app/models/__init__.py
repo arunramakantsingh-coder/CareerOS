@@ -48,6 +48,7 @@ from app.models.occupation_mapping import OccupationMapping
 from app.models.migration_pathway import MigrationPathway
 from app.models.migration_profile import MigrationProfile
 from app.models.skill_gap import SkillGapObservation, SkillGapAggregate
+from app.models.intelligence_provider import IntelligenceProviderConfig
 
 from app.models.v01_product import Application, CompanyIntelligence, Interview, TruthCheck, AuditLog, LiveInterviewSession
 
@@ -60,6 +61,6 @@ __all__ = [
     "JobResponsibility", "CapabilityTaxonomy", "Match", "MatchDimension", "MatchRecommendation",
     "ResumeVersion", "ResumeSection", "ResumeEvidenceLink", "JobSource", "JobSourceConnection", "JobListing",
     "JobDiscovery", "RemoteEligibility", "Country", "Visa", "MigrationRule", "OccupationMapping",
-    "MigrationPathway", "MigrationProfile", "SkillGapObservation", "SkillGapAggregate", "Application",
-    "CompanyIntelligence", "Interview", "TruthCheck", "AuditLog", "LiveInterviewSession",
+    "MigrationPathway", "MigrationProfile", "SkillGapObservation", "SkillGapAggregate", "IntelligenceProviderConfig",
+    "Application", "CompanyIntelligence", "Interview", "TruthCheck", "AuditLog", "LiveInterviewSession",
 ]

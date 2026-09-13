@@ -1,127 +1,202 @@
 # CareerOS — LIVE HANDOVER SNAPSHOT
 
-> Update this file at the end of every material AI session. The goal is that a new AI can continue without access to prior chat.
+> Update this file at the end of every material AI session. A new AI must be able to continue from GitHub and runtime evidence without relying on prior chat.
 
 ## Snapshot
 
-- Date: 2026-09-05
-- Application development line: `working/m02-professional-identity-v1.6-reconciled-20260905`
-- Application HEAD at this handover update: `cf0ae51bda6d392dd7afdb4c47ba2c23ca3eecb2`
+- Date: 2026-09-13
+- Active development branch: `feature/intelligence-provider-gateway-20260912`
+- Current branch HEAD: `a6a9b3566c4791753ee36f54de044269738fc0b4`
 - Active product release: v0.2 Global Job Intelligence
-- Active milestone: **M02 Professional Identity / Profile Builder / Career Intake**
-- Current integration PR: **#19 — M02 v1.6 Reconciled Professional Identity implementation**
+- Active work: Global Intelligence provider gateway + M02 database migration repair/safety
+- Current PR: **#25 — feat(intelligence): add provider-neutral AI gateway + DB safety**
+- PR state: OPEN / DRAFT
 - Release target: `release/v0.2-global-job-intelligence`
-- Overall status: **IMPLEMENTATION PRESENT / LOCAL RUNTIME & E2E ACCEPTANCE PENDING**
+- Overall status: **IMPLEMENTATION PRESENT / LOCAL DATABASE RUNTIME VALIDATION PENDING**
 
 ## Current development model
 
-CareerOS uses an AI-led, GitHub-first development loop:
-
 ```text
-User + Lead AI discuss requirement
-        ↓
-Lead AI defines scope + acceptance criteria
-        ↓
-Coding AI implements directly on authorized GitHub working branch
-        ↓
-Tests / migrations / code validation
-        ↓
-Commit + exact implementation report
-        ↓
-Lead AI reviews GitHub state
-        ↓
+Product Owner
+    ↓
+Lead AI / QA defines scope and acceptance
+    ↓
+Coding AI inspects GitHub + control plane
+    ↓
+Implementation on authorized branch
+    ↓
+Migration + schema validation when DB-affecting
+    ↓
+Tests / CI
+    ↓
 Human pulls exact branch and runs local Docker/browser acceptance
-        ↓
-Human returns runtime evidence
-        ↓
-Lead AI diagnoses / coding AI fixes if required
-        ↓
-Final QA / release review
-        ↓
-VERIFIED only after evidence + approval
+    ↓
+Runtime evidence returns to Lead AI
+    ↓
+QA / release review
 ```
 
-The human is the local runtime/operator and product owner, not the normal source-file editor. The coding AI should use GitHub write access when available and then hand the human a precise, reproducible local test procedure.
+The human is the local runtime/operator and product owner. The coding AI should make source changes through the authorized repository workflow and provide exact local verification commands.
 
-## Required local-testing handoff
+## Database safety control — permanent
 
-After a GitHub implementation, the AI must provide:
+All material PostgreSQL/Alembic changes are governed by:
 
-- exact branch;
-- expected commit SHA;
-- pull/checkout commands;
-- Docker rebuild/start commands;
-- migration/database commands when applicable;
-- browser/API routes;
-- expected results;
-- regression/negative checks;
-- destructive commands to avoid;
-- exact logs/screenshots/output to return on failure.
+- `docs/AI_TAKEOVER/06_DATABASE_SAFETY.md`
+- `docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`
+- `docs/DB_SCHEMA_BASELINE.md`
+- `backend/scripts/validate_database.py`
 
-For database changes, preserve the PostgreSQL volume unless destructive reset is explicitly authorized.
+Database validation is now a release gate. Docker startup must not be the first place a migration defect is discovered.
 
-## Current M02 state
+## Current migration graph
 
-M02 v1.6 is the reconciled continuation of the Professional Identity work on top of the auth-tested v0.2 baseline. The implementation includes the profile/evidence/document-intelligence foundations described by PR #19. Code-level validation has been performed on the branch, but **local Docker/browser runtime acceptance remains the gate**.
+```text
+016_m02_identity_intelligence
+                |
+017_m02_employment_semantic_fields
+          ______|________________
+         /                       \
+018_m02_profile_sections   018_global_intelligence_provider_registry
+         \                       /
+          \_____________________/
+                    |
+             019_intelligence_registry
+```
 
-The latest previously reported migration work establishes a controlled Alembic synchronization path rather than relying on `Base.metadata.create_all()` during application startup. The local database migration must be observed in the user's environment before authentication/database regression can be considered runtime-verified.
+The historical database state was verified to contain:
 
-## Important release safety
+```text
+017_m02_employment_semantic
+018_m02_profile_sections
+```
+
+The physical schema already contains the 017 employment semantic columns and 018 profile-section columns. `intelligence_provider_configs` was missing at the time of diagnosis.
+
+The migration bootstrap now contains a narrow compatibility path that verifies the 017 schema before normalizing only Alembic bookkeeping. It must not rerun the 017 schema DDL.
+
+## Database work implemented in this session
+
+- Added legacy revision compatibility in `backend/app/core/migrations.py`.
+- Added migration compatibility regression test in `backend/tests/test_migration_bootstrap.py`.
+- Added read-only structural validator: `backend/scripts/validate_database.py`.
+- Added mandatory procedure: `docs/DB_MIGRATION_AND_DATABASE_VALIDATION_PROCEDURE.md`.
+- Added structural baseline/control document: `docs/DB_SCHEMA_BASELINE.md`.
+- Added AI-agent database safety control: `docs/AI_TAKEOVER/06_DATABASE_SAFETY.md`.
+- Linked database safety controls into `.ai/README.md`.
+- Added fresh-DB and legacy-revision migration CI gates.
+- Updated PR #25 description to reflect database work.
+
+## Local database evidence before repair
+
+Verified from the user's local environment:
+
+```text
+alembic_version:
+017_m02_employment_semantic
+018_m02_profile_sections
+```
+
+Verified schema:
+
+```text
+professional_experiences:
+client
+technologies
+industries
+
+candidate_profiles:
+projects
+accomplishments
+
+intelligence_provider_configs:
+missing
+```
+
+The backend startup failure was:
+
+```text
+RevisionError: Requested revision 018_m02_profile_sections overlaps with
+other requested revisions 017_m02_employment_semantic_fields
+```
+
+This must be re-tested after pulling the current branch. No destructive DB operation has been authorized.
+
+## Required local acceptance after pull
+
+From:
+
+```powershell
+PS C:\Projects\v0.2-global-job-intelligence>
+```
+
+First verify repository state and protected files remain untouched.
+
+Then run the read-only pre-migration validator:
+
+```powershell
+docker compose run --rm backend python scripts/validate_database.py --phase pre-migration
+```
+
+Then rebuild/start the backend so the controlled migration compatibility path can execute.
+
+After startup/migration, run:
+
+```powershell
+docker compose run --rm backend python scripts/validate_database.py --phase post-migration
+```
+
+Then verify:
+
+```powershell
+docker compose run --rm backend python -c "from alembic.config import Config; from alembic import command; cfg=Config('alembic.ini'); command.current(cfg, verbose=True)"
+```
+
+Expected final migration state:
+
+```text
+019_intelligence_registry
+```
+
+Also verify:
+
+- `intelligence_provider_configs` exists;
+- important application row counts are unchanged;
+- backend starts;
+- `http://localhost:8000/api/v1/health` responds;
+- frontend remains usable;
+- relevant Intelligence provider diagnostics work;
+- protected untracked files remain untouched.
+
+## Safety restrictions
+
+Never use during this repair:
+
+```text
+docker compose down -v
+DROP TABLE
+TRUNCATE
+application-data DELETE
+alembic downgrade
+PostgreSQL volume recreation
+CV re-upload
+```
+
+Protected untracked files:
+
+```text
+backend/backend-openapi.json
+cv-extracted.txt
+openapi-check.json
+```
+
+## Product safety
 
 - v0.1 remains frozen.
-- `release/v0.2-global-job-intelligence` must not be changed as part of normal M02 implementation.
-- PR #19 must not be merged automatically.
-- Do not claim M02 `VERIFIED` before local runtime evidence and final QA/release review.
-- Do not start Global Job Discovery merely because profile code exists; complete the M02 acceptance gate first.
-- Live Interview remains a divergent/legacy line and requires explicit reconciliation before integration.
+- Do not merge PR #25 automatically.
+- Do not claim runtime verification without actual local output.
+- Do not move to later product modules merely because implementation exists.
 
-## Takeover requirements
+## Exact next action
 
-A new AI must first read:
-
-1. `AI_TAKEOVER.md`
-2. `AGENTS.md`
-3. `docs/AI_TAKEOVER/05_LIVE_HANDOVER.md`
-4. `docs/21_AI_TO_AI_COORDINATION_PROTOCOL.md`
-5. `docs/22_CAREEROS_CURRENT_CONTROL_STATE.md`
-6. `docs/23_CAREEROS_MODULE_VERSION_REGISTRY.md`
-7. relevant product/spec/domain documents
-
-Then inspect actual GitHub branches, HEAD, ancestry, PRs, migrations, tests and current implementation. Do not trust stale documentation when GitHub/runtime evidence disagrees; record the discrepancy.
-
-## Closeout template
-
-Every material AI session must leave:
-
-```text
-Timestamp:
-Active branch:
-Commit SHA:
-Milestone/module/version:
-Objective:
-Implementation completed:
-Files changed:
-Database/migrations:
-APIs:
-UI:
-Tests actually executed:
-CI status actually observed:
-Local runtime evidence:
-Known bugs:
-Blockers/external dependencies:
-Material decisions:
-What is NOT complete:
-Exact next action:
-```
-
-## Handover marker
-
-```text
-[CAREEROS: AI HANDOVER — 2026-09-05]
-Application branch: working/m02-professional-identity-v1.6-reconciled-20260905
-Control state: M02 v1.6 IMPLEMENTATION PRESENT / LOCAL RUNTIME E2E ACCEPTANCE PENDING
-Release branch: release/v0.2-global-job-intelligence
-Current PR: #19
-Latest control-plane commit: cf0ae51bda6d392dd7afdb4c47ba2c23ca3eecb2
-No M02 VERIFIED claim has been made by this handover update.
-```
+Pull the current PR #25 branch locally, rebuild the backend, and return the actual output from the pre/post database validation, migration current state, backend health, and `git status --short`. Do not manually edit the database before the compatibility path has been tested.

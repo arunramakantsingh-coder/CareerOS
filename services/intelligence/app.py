@@ -14,7 +14,7 @@ app = FastAPI(
     description="Provider-neutral AI gateway for CareerOS.",
 )
 
-REQUEST_TIMEOUT = float(os.getenv("INTELLIGENCE_TIMEOUT_SECONDS", "90"))
+REQUEST_TIMEOUT = float(os.getenv("INTELLIGENCE_TIMEOUT_SECONDS", "300"))
 CONFIG = {
     "AI_PROVIDER": os.getenv("AI_PROVIDER", "ollama"),
     "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"),
@@ -34,6 +34,13 @@ class GenerateRequest(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     provider: str | None = None
     model: str | None = None
+
+
+class ConfigureRequest(BaseModel):
+    provider: str = Field(pattern="^(ollama|openrouter|gemini)$")
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 def _provider_config(provider_name: str) -> dict[str, str]:
@@ -85,13 +92,12 @@ async def providers() -> dict[str, Any]:
 
 @app.get("/v1/capabilities")
 async def capabilities() -> dict[str, Any]:
+    active = CONFIG["AI_PROVIDER"].strip().lower()
     return {
-        "provider": CONFIG["AI_PROVIDER"].strip().lower(),
+        "provider": active,
         "model": (
-            CONFIG["OLLAMA_MODEL"]
-            if CONFIG["AI_PROVIDER"].strip().lower() == "ollama"
-            else CONFIG["OPENROUTER_MODEL"]
-            if CONFIG["AI_PROVIDER"].strip().lower() == "openrouter"
+            CONFIG["OLLAMA_MODEL"] if active == "ollama"
+            else CONFIG["OPENROUTER_MODEL"] if active == "openrouter"
             else CONFIG["GEMINI_MODEL"]
         ) or None,
         "providers": ["ollama", "openrouter", "gemini"],
@@ -104,6 +110,34 @@ async def capabilities() -> dict[str, Any]:
             "research_synthesis",
         ],
     }
+
+
+@app.post("/v1/configure")
+async def configure(request: ConfigureRequest) -> dict[str, Any]:
+    provider = request.provider.strip().lower()
+    if provider in {"openrouter", "gemini"} and not (request.api_key or CONFIG.get({"openrouter": "OPENROUTER_API_KEY", "gemini": "GEMINI_API_KEY"}[provider])):
+        raise HTTPException(status_code=400, detail=f"API key is required for {provider}")
+
+    if provider == "ollama":
+        if request.base_url:
+            CONFIG["OLLAMA_BASE_URL"] = request.base_url.rstrip("/")
+        if request.model:
+            CONFIG["OLLAMA_MODEL"] = request.model
+    elif provider == "openrouter":
+        if request.base_url:
+            CONFIG["OPENROUTER_BASE_URL"] = request.base_url.rstrip("/")
+        if request.api_key:
+            CONFIG["OPENROUTER_API_KEY"] = request.api_key
+        if request.model:
+            CONFIG["OPENROUTER_MODEL"] = request.model
+    else:
+        if request.api_key:
+            CONFIG["GEMINI_API_KEY"] = request.api_key
+        if request.model:
+            CONFIG["GEMINI_MODEL"] = request.model
+
+    CONFIG["AI_PROVIDER"] = provider
+    return {"active_provider": provider, "providers": (await providers())["providers"]}
 
 
 @app.post("/v1/generate")

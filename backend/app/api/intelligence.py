@@ -66,6 +66,11 @@ def _ensure_catalog_rows(db: Session) -> None:
         db.add(row)
         changed = True
     if changed:
+        db.flush()
+        if not db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.active.is_(True)).first():
+            ollama = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == "ollama").first()
+            if ollama:
+                ollama.active = True
         db.commit()
 
 
@@ -91,12 +96,7 @@ def _public_provider(row: IntelligenceProviderConfig) -> dict[str, Any]:
 
 def _gateway_config(row: IntelligenceProviderConfig, supplied_key: str | None = None) -> dict[str, Any]:
     api_key = supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)
-    return {
-        "provider": row.provider,
-        "model": row.model,
-        "base_url": row.base_url,
-        "api_key": api_key,
-    }
+    return {"provider": row.provider, "model": row.model, "base_url": row.base_url, "api_key": api_key}
 
 
 async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -159,7 +159,8 @@ async def save_provider(request: ProviderSaveRequest, db: Session = Depends(get_
     row.last_error = None
     db.commit()
     db.refresh(row)
-    return {"provider": _public_provider(row), "active_provider": next((x.provider for x in db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.active).all()), None)}
+    active = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.active.is_(True)).first()
+    return {"provider": _public_provider(row), "active_provider": active.provider if active else None}
 
 
 @router.post("/providers/activate")

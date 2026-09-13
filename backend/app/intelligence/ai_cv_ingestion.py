@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
@@ -39,11 +39,9 @@ class AICVIngestionError(RuntimeError):
 
 
 def ingest_cv_with_ai(document: Document, profile: CandidateProfile, db: Session) -> dict[str, Any]:
-    if (document.document_category or "").lower() != "cv":
-        raise AICVIngestionError("AI profile building is only supported for CV documents")
+    if (document.document_category or "").lower() != "cv": raise AICVIngestionError("AI profile building is only supported for CV documents")
     text = (document.source_metadata or {}).get("extracted_text", "")
-    if not isinstance(text, str) or not text.strip():
-        raise AICVIngestionError("No extracted document text is available")
+    if not isinstance(text, str) or not text.strip(): raise AICVIngestionError("No extracted document text is available")
     task = """Extract a complete professional profile from the supplied CV.
 Rules:
 - The CV is the source of truth. Never invent or infer facts.
@@ -61,13 +59,9 @@ Rules:
     if result.status != "completed":
         detail = result.result if isinstance(result.result, dict) else {"error": str(result.result)}
         raise AICVIngestionError(f"AI CV extraction failed: {detail}")
-    payload = _parse(result.result)
-    counts = _persist(document, profile, payload, db)
-    metadata = dict(document.source_metadata or {})
-    metadata["ai_profile_extraction"] = {"status": "completed", "engine_version": result.engine_version, "provider": result.provider, "model": result.model, "trace_id": str(result.trace_id) if result.trace_id else None, "counts": counts}
-    document.source_metadata = metadata
-    profile.reconciliation_status = "complete" if counts["needs_review"] == 0 else "conflicting"
-    db.commit()
+    payload = _parse(result.result); counts = _persist(document, profile, payload, db)
+    metadata = dict(document.source_metadata or {}); metadata["ai_profile_extraction"] = {"status": "completed", "engine_version": result.engine_version, "provider": result.provider, "model": result.model, "trace_id": str(result.trace_id) if result.trace_id else None, "counts": counts}; document.source_metadata = metadata
+    profile.reconciliation_status = "complete" if counts["needs_review"] == 0 else "conflicting"; db.commit()
     return {"status": profile.reconciliation_status, "document_id": str(document.id), "model": result.model, "provider": result.provider, "trace_id": str(result.trace_id) if result.trace_id else None, "counts": counts}
 
 
@@ -75,20 +69,16 @@ def _persist(document: Document, profile: CandidateProfile, payload: dict[str, A
     profile_data = payload.get("profile") or {}
     for field in ("full_name", "location", "title", "summary", "primary_email", "primary_phone", "linkedin_url", "years_experience", "seniority"):
         value = profile_data.get(field)
-        if value not in (None, "", []) and getattr(profile, field, None) in (None, ""):
-            setattr(profile, field, value)
+        if value not in (None, "", []) and getattr(profile, field, None) in (None, ""): setattr(profile, field, value)
     profile.industries = _merge(profile.industries or [], profile_data.get("industries") or [])
-    raw_experiences = [_sanitize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]
-    applied, review, protected = _apply_experiences(document, raw_experiences, db)
+    raw_experiences = [_sanitize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]; applied, review, protected = _apply_experiences(document, raw_experiences, db)
     for item in payload.get("skills", []):
         if isinstance(item, dict): _skill(document, profile, item.get("name"), item.get("category"), item.get("proficiency"), db)
     for item in payload.get("certifications", []):
         if isinstance(item, dict): _cert(document, profile, item, db)
     for item in payload.get("education", []):
         if isinstance(item, dict): _edu(document, profile, item, db)
-    projects = _merge_objects(profile.projects or [], payload.get("projects") or [], "name", str(document.id))
-    accomplishments = _merge_objects(profile.accomplishments or [], payload.get("accomplishments") or [], "title", str(document.id))
-    profile.projects = projects; profile.accomplishments = accomplishments
+    projects = _merge_objects(profile.projects or [], payload.get("projects") or [], "name", str(document.id)); accomplishments = _merge_objects(profile.accomplishments or [], payload.get("accomplishments") or [], "title", str(document.id)); profile.projects = projects; profile.accomplishments = accomplishments
     for item in projects:
         if item.get("source_document_id") == str(document.id): _evidence(profile.id, document, "project", item.get("id"), 0.85, item.get("description"), db)
     for item in accomplishments:
@@ -101,8 +91,7 @@ def _skill(doc: Document, profile: CandidateProfile, skill_name: Any, category: 
     if not name: return
     row = db.query(CandidateSkill).filter(CandidateSkill.candidate_id == profile.id, CandidateSkill.name.ilike(name)).first()
     if not row: row = CandidateSkill(candidate_id=profile.id, name=name, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.category = row.category or _clean(category) or "Technical/IT"; row.proficiency = row.proficiency or _clean(proficiency); row.confidence = max(float(row.confidence or 0), 0.85)
-    db.flush(); _evidence(profile.id, doc, "skill", row.id, 0.85, None, db)
+    row.category = row.category or _clean(category) or "Technical/IT"; row.proficiency = row.proficiency or _clean(proficiency); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "skill", row.id, 0.85, None, db)
 
 
 def _cert(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> None:
@@ -110,8 +99,7 @@ def _cert(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Se
     if not name: return
     row = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == profile.id, CandidateCertification.name.ilike(name)).first()
     if not row: row = CandidateCertification(candidate_id=profile.id, name=name, issuer=issuer, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.issuer = row.issuer if row.issuer != "Unknown" else issuer; row.issue_date = row.issue_date or _date(item.get("issue_date")); row.expiry_date = row.expiry_date or _date(item.get("expiry_date")); row.credential_reference = row.credential_reference or _clean(item.get("credential_reference")); row.confidence = max(float(row.confidence or 0), 0.85)
-    db.flush(); _evidence(profile.id, doc, "certification", row.id, 0.85, None, db)
+    row.issuer = row.issuer if row.issuer != "Unknown" else issuer; row.issue_date = row.issue_date or _date(item.get("issue_date")); row.expiry_date = row.expiry_date or _date(item.get("expiry_date")); row.credential_reference = row.credential_reference or _clean(item.get("credential_reference")); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "certification", row.id, 0.85, None, db)
 
 
 def _edu(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> None:
@@ -119,8 +107,7 @@ def _edu(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Ses
     if not institution or not degree: return
     row = db.query(CandidateEducation).filter(CandidateEducation.candidate_id == profile.id, CandidateEducation.institution.ilike(institution), CandidateEducation.degree.ilike(degree)).first()
     if not row: row = CandidateEducation(candidate_id=profile.id, institution=institution, degree=degree, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.field_of_study = row.field_of_study or _clean(item.get("field_of_study")); row.start_date = row.start_date or _date(item.get("start_date")); row.end_date = row.end_date or _date(item.get("end_date")); row.grade = row.grade or _clean(item.get("grade")); row.confidence = max(float(row.confidence or 0), 0.85)
-    db.flush(); _evidence(profile.id, doc, "education", row.id, 0.85, None, db)
+    row.field_of_study = row.field_of_study or _clean(item.get("field_of_study")); row.start_date = row.start_date or _date(item.get("start_date")); row.end_date = row.end_date or _date(item.get("end_date")); row.grade = row.grade or _clean(item.get("grade")); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "education", row.id, 0.85, None, db)
 
 
 def _merge_objects(existing: list[Any], incoming: list[Any], key_field: str, source_document_id: str) -> list[dict[str, Any]]:

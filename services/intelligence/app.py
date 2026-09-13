@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from health import check_provider_health
 from providers import ProviderError, build_provider
 
 app = FastAPI(title="CareerOS Intelligence Engine", version="0.3.0", description="Provider-neutral global AI gateway for CareerOS.")
@@ -30,6 +31,13 @@ class GenerateRequest(BaseModel):
 
 
 class ConfigureRequest(BaseModel):
+    provider: str = Field(min_length=2, max_length=50)
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+class ProviderHealthRequest(BaseModel):
     provider: str = Field(min_length=2, max_length=50)
     model: str | None = None
     api_key: str | None = None
@@ -76,6 +84,20 @@ async def providers() -> dict[str, Any]:
     return {"active_provider": CONFIG["AI_PROVIDER"].strip().lower(), "providers": result}
 
 
+@app.post("/v1/provider-health")
+async def provider_health(request: ProviderHealthRequest) -> dict[str, Any]:
+    provider = request.provider.strip().lower()
+    if provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {provider}")
+    return await check_provider_health(
+        provider=provider,
+        model=request.model,
+        api_key=request.api_key,
+        base_url=request.base_url,
+        timeout=min(30.0, max(5.0, REQUEST_TIMEOUT)),
+    )
+
+
 @app.get("/v1/capabilities")
 async def capabilities() -> dict[str, Any]:
     active = CONFIG["AI_PROVIDER"].strip().lower()
@@ -83,7 +105,7 @@ async def capabilities() -> dict[str, Any]:
         "provider": active,
         "model": CONFIG.get("OLLAMA_MODEL") if active == "ollama" else None,
         "providers": SUPPORTED_PROVIDERS,
-        "capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "multi_provider", "fallback_routing", "usage_policy_ready"],
+        "capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "multi_provider", "fallback_routing", "usage_policy_ready", "provider_health"],
     }
 
 
@@ -112,4 +134,4 @@ async def generate(request: GenerateRequest) -> dict[str, Any]:
         result = await provider.generate(prompt=request.prompt, system=request.system, response_schema=request.response_schema, temperature=request.temperature)
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"provider": result.provider, "model": result.model, "response": result.response, "done": result.done, "total_duration": result.total_duration}
+    return {"provider": result.provider, "model": result.model, "response": result.response, "done": result.done, "total_duration": result.total_duration, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}

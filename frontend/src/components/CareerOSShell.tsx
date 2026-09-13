@@ -6,7 +6,6 @@ import type { ReactNode, ButtonHTMLAttributes } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { useTheme, type CareerOSTheme } from '@/contexts/ThemeContext';
-import CareerOSToast from '@/components/CareerOSToast';
 
 type NavItem = readonly [string, string, string];
 type NavGroup = { id: string; title: string; items: NavItem[]; developerOnly?: boolean };
@@ -108,7 +107,6 @@ export function CareerOSShell({ children }: { children: ReactNode }) {
   const selectGroup = (next: NavGroup) => { setMobileOpen(false); router.push(next.items[0][1]); };
 
   return <div className="min-h-screen bg-background text-foreground">
-    <CareerOSToast />
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[236px] border-r bg-sidebar md:flex md:flex-col">
       <div className="border-b px-4 py-4"><Link href="/" className="flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-lg text-primary-foreground shadow-[0_0_22px_hsl(var(--primary)/.22)]">◇</span><span className="min-w-0"><strong className="block text-sm tracking-wide">CareerOS</strong><span className="block text-[11px] text-muted-foreground">Career Intelligence System</span></span></Link></div>
       <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3" aria-label="CareerOS domains">{visibleGroups.map(g => <button key={g.id} type="button" onClick={() => selectGroup(g)} className={`mb-2 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition ${g.id === groupId ? 'bg-primary/10 text-primary ring-1 ring-primary/20' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'}`}><span><span className="block text-[10px] font-bold uppercase tracking-[.17em]">{g.title}</span><span className="mt-1 block text-[11px] opacity-70">{g.items.length} workspace {g.items.length === 1 ? 'area' : 'areas'}</span></span><span className="text-xs">{g.id === groupId ? '●' : '○'}</span></button>)}</nav>

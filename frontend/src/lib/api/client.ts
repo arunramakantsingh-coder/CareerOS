@@ -77,6 +77,10 @@ class ApiClient {
   activatePersonaSuggestion(id: string) { return this.post<any>(`/api/v1/identity/personas/suggestions/${id}/activate`, {}); }
   connectionDiagnostics() { return this.get<any>('/api/v1/identity/connections/diagnostics'); }
 
+  intelligenceProviders() { return this.get<any>('/api/v1/intelligence/providers'); }
+  configureIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/configure', body); }
+  testIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }
+
   personas(userId: string) { return this.get<any[]>(`/api/v1/personas/?user_id=${encodeURIComponent(userId)}`); }
   createPersona(body: any) { return this.post<any>('/api/v1/personas/', body); }
   updatePersona(id: string, body: any) { return this.put<any>(`/api/v1/personas/${id}`, body); }

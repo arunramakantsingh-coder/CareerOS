@@ -15,10 +15,8 @@ from app.core.database import SessionLocal
 from app.intelligence.ai_cv_ingestion import SCHEMA, _parse
 from app.intelligence.contracts import IntelligenceRequest
 from app.intelligence.engine import engine
-from app.models.document import Document
 
 DOCUMENT_ID = UUID("d1307403-ae5b-41ad-b296-d007f910b10b")
-
 TASK = """Extract only the employment history from the supplied CV for diagnostic purposes.
 Rules:
 - The CV is the source of truth. Never invent or infer facts.
@@ -32,12 +30,24 @@ Rules:
 def main() -> int:
     db = SessionLocal()
     try:
-        document = db.query(Document).filter(Document.id == DOCUMENT_ID).first()
-        if document is None:
+        # Avoid ORM mapper initialization. The Document model pulls in the User
+        # relationship graph, which can fail in this diagnostic for unrelated
+        # ExternalIdentity registration. Read only the required document fields.
+        from sqlalchemy import text as sql_text
+
+        row = db.execute(
+            sql_text(
+                "SELECT id, original_filename, document_category, source_metadata "
+                "FROM documents WHERE id = :id"
+            ),
+            {"id": str(DOCUMENT_ID)},
+        ).mappings().first()
+        if row is None:
             print("DOCUMENT NOT FOUND")
             return 2
 
-        text = (document.source_metadata or {}).get("extracted_text", "")
+        metadata = row.get("source_metadata") or {}
+        text = metadata.get("extracted_text", "") if isinstance(metadata, dict) else ""
         if not isinstance(text, str) or not text.strip():
             print("NO EXTRACTED TEXT")
             return 2
@@ -46,9 +56,9 @@ def main() -> int:
             task=TASK,
             context={
                 "document": {
-                    "id": str(document.id),
-                    "filename": document.original_filename,
-                    "category": document.document_category,
+                    "id": str(row["id"]),
+                    "filename": row["original_filename"],
+                    "category": row["document_category"],
                     "text": text[:100000],
                 }
             },

@@ -51,19 +51,7 @@ def _ensure_catalog_rows(db: Session) -> None:
         row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == name).first()
         if row:
             continue
-        row = IntelligenceProviderConfig(
-            provider=name,
-            label=meta["label"],
-            category=meta["category"],
-            model=meta["model"],
-            base_url=meta["base_url"],
-            configured=(name == "ollama"),
-            active=False,
-            priority=100,
-            capabilities=meta["capabilities"],
-            routing_policy={"mode": "manual", "fallback_enabled": False},
-        )
-        db.add(row)
+        db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], configured=(name == "ollama"), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "manual", "fallback_enabled": False}))
         changed = True
     if changed:
         db.flush()
@@ -75,37 +63,17 @@ def _ensure_catalog_rows(db: Session) -> None:
 
 
 def _public_provider(row: IntelligenceProviderConfig) -> dict[str, Any]:
-    return {
-        "provider": row.provider,
-        "label": row.label,
-        "category": row.category,
-        "model": row.model,
-        "base_url": row.base_url,
-        "configured": bool(row.configured),
-        "active": bool(row.active),
-        "priority": row.priority,
-        "capabilities": row.capabilities or [],
-        "routing_policy": row.routing_policy or {},
-        "api_key_present": bool(row.encrypted_api_key),
-        "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None,
-        "last_tested_at": row.last_tested_at,
-        "last_test_status": row.last_test_status,
-        "last_error": row.last_error,
-    }
+    return {"provider": row.provider, "label": row.label, "category": row.category, "model": row.model, "base_url": row.base_url, "configured": bool(row.configured), "active": bool(row.active), "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": row.routing_policy or {}, "api_key_present": bool(row.encrypted_api_key), "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error}
 
 
 def _gateway_config(row: IntelligenceProviderConfig, supplied_key: str | None = None) -> dict[str, Any]:
-    api_key = supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)
-    return {"provider": row.provider, "model": row.model, "base_url": row.base_url, "api_key": api_key}
+    return {"provider": row.provider, "model": row.model, "base_url": row.base_url, "api_key": supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)}
 
 
 async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            if method == "POST":
-                response = await client.post(f"{INTELLIGENCE_BASE_URL}{path}", json=payload or {})
-            else:
-                response = await client.get(f"{INTELLIGENCE_BASE_URL}{path}")
+            response = await client.post(f"{INTELLIGENCE_BASE_URL}{path}", json=payload or {}) if method == "POST" else await client.get(f"{INTELLIGENCE_BASE_URL}{path}")
             response.raise_for_status()
             return response.json()
     except httpx.HTTPStatusError as exc:
@@ -131,8 +99,7 @@ async def providers(db: Session = Depends(get_db), _: User = Depends(get_current
     return {"active_provider": active, "providers": [_public_provider(row) for row in rows]}
 
 
-@router.post("/providers/save")
-async def save_provider(request: ProviderSaveRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
+def _save_row(db: Session, request: ProviderSaveRequest) -> IntelligenceProviderConfig:
     name = request.provider.strip().lower()
     if name not in PROVIDER_CATALOG:
         raise HTTPException(status_code=400, detail=f"Unsupported Intelligence provider: {name}")
@@ -152,15 +119,33 @@ async def save_provider(request: ProviderSaveRequest, db: Session = Depends(get_
         secret = request.api_key.strip()
         row.encrypted_api_key = encrypt_secret(secret)
         row.api_key_last4 = secret[-4:]
-    if name == "ollama":
-        row.configured = True
-    else:
-        row.configured = bool(row.encrypted_api_key)
+    row.configured = True if name == "ollama" else bool(row.encrypted_api_key)
     row.last_error = None
-    db.commit()
-    db.refresh(row)
+    return row
+
+
+@router.post("/providers/save")
+async def save_provider(request: ProviderSaveRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    row = _save_row(db, request)
+    db.commit(); db.refresh(row)
     active = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.active.is_(True)).first()
     return {"provider": _public_provider(row), "active_provider": active.provider if active else None}
+
+
+@router.post("/providers/configure")
+async def configure_provider_legacy(request: ProviderSaveRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    """Backward-compatible Save & Activate endpoint for the older Settings UI.
+
+    Existing saved credentials are reused when api_key is omitted. New code should
+    use Save Credentials and Activate separately from Project Control.
+    """
+    row = _save_row(db, request)
+    if row.provider != "ollama" and not row.encrypted_api_key:
+        raise HTTPException(status_code=400, detail="Save provider credentials before activating this provider")
+    db.query(IntelligenceProviderConfig).update({"active": False})
+    row.active = True
+    db.commit(); db.refresh(row)
+    return {"active_provider": row.provider, "provider": _public_provider(row)}
 
 
 @router.post("/providers/activate")
@@ -198,17 +183,12 @@ async def test_provider(request: ProviderSaveRequest, db: Session = Depends(get_
         payload["base_url"] = request.base_url.rstrip("/")
     try:
         result = await _call("/v1/generate", method="POST", payload={"prompt": "Reply with exactly: CAREEROS_AI_TEST_OK", "temperature": 0.0, **payload})
-        row.last_tested_at = datetime.now(timezone.utc).isoformat()
-        row.last_test_status = "passed"
-        row.last_error = None
+        row.last_tested_at = datetime.now(timezone.utc).isoformat(); row.last_test_status = "passed"; row.last_error = None
         db.commit()
         return result
     except HTTPException as exc:
-        row.last_tested_at = datetime.now(timezone.utc).isoformat()
-        row.last_test_status = "failed"
-        row.last_error = str(exc.detail)[:1000]
-        db.commit()
-        raise
+        row.last_tested_at = datetime.now(timezone.utc).isoformat(); row.last_test_status = "failed"; row.last_error = str(exc.detail)[:1000]
+        db.commit(); raise
 
 
 @router.get("/capabilities")
@@ -231,7 +211,6 @@ async def execute(request: IntelligenceRequest, _: User = Depends(get_current_us
 
 @router.post("/retrieve")
 async def retrieve(request: RetrievalRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return tenant-scoped CareerOS knowledge with evidence references."""
     return retrieve_career_knowledge(db=db, user_id=current_user.id, query=request.query, top_k=request.top_k, filters=request.filters)
 
 

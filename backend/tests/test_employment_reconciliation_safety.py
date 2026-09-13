@@ -75,7 +75,7 @@ def test_user_confirmed_match_is_protected_before_mutable_query(monkeypatch):
 
 
 def test_user_confirmed_rows_are_excluded_from_mutable_match(monkeypatch):
-    document = SimpleNamespace(candidate_id=uuid4(), source_metadata={})
+    document = SimpleNamespace(id=uuid4(), candidate_id=uuid4(), source_metadata={})
     confirmed = SimpleNamespace(
         id=uuid4(),
         company="Example Corp",
@@ -149,7 +149,11 @@ def test_user_confirmed_rows_are_excluded_from_mutable_match(monkeypatch):
         capture_best_match,
     )
 
-    applied, review, protected, mutations = _apply_experiences(document, [_anchor("Other Corp", "Network Architect")], FakeDB())
+    applied, review, protected, mutations = _apply_experiences(
+        document,
+        [_anchor("Other Corp", "Network Architect")],
+        FakeDB(),
+    )
 
     assert captured_rows == [mutable]
     assert confirmed not in captured_rows

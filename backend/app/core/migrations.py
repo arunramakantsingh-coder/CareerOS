@@ -26,7 +26,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-HEAD = "016_m02_identity_intelligence"
+HEAD = "019_intelligence_registry"
 BASELINE_014 = "014_m02_identity_career_intake"
 BASELINE_015 = "015_document_vault_enhancement"
 
@@ -85,7 +85,7 @@ def _detect_legacy_baseline() -> str | None:
             },
         )
     ):
-        return HEAD
+        return "016_m02_identity_intelligence"
 
     # 015 fingerprint: 014's M02 tables exist and all fields added by 015 are
     # present, but 016's role column is not yet present.
@@ -169,9 +169,10 @@ def reconcile_database() -> None:
             "migration before starting the API."
         )
 
-    if baseline == HEAD:
-        logger.warning("Legacy schema matches Alembic head; recording revision %s", HEAD)
-        command.stamp(cfg, HEAD)
+    if baseline == "016_m02_identity_intelligence":
+        logger.warning("Legacy schema matches Alembic 016; recording revision %s", baseline)
+        command.stamp(cfg, baseline)
+        command.upgrade(cfg, "head")
         return
 
     logger.warning("Legacy schema detected at %s; recording that exact baseline", baseline)

@@ -145,7 +145,7 @@ async def observability(db: Session = Depends(get_db), _: User = Depends(get_cur
         "active_provider_healthy": _health_is_fresh(active) if active else False,
         "fallback_enabled": bool((active.routing_policy or {}).get("fallback_enabled", True)) if active else False,
         "configured_provider_order": [row.provider for row in sorted(configured, key=lambda x: (x.priority, x.label))],
-        "healthy_provider_order": [row.provider for row in sorted(configured, key=lambda x: (x.priority, x.label)) if _health_is_fresh(x)],
+        "healthy_provider_order": [row.provider for row in sorted(configured, key=lambda x: (x.priority, x.label)) if _health_is_fresh(row)],
         "tasks": {"cv_extraction": ["structured_output"], "profile_reconciliation": ["structured_output", "reasoning"], "document_classification": ["structured_output"], "persona_generation": ["reasoning"], "jd_analysis": ["reasoning", "long_context"], "matching": ["reasoning", "structured_output"], "research": ["long_context"], "interview_intelligence": ["reasoning"], "embedding": ["embedding"], "bulk_processing": ["fast", "structured_output"]},
     }
     return {"routing": routing, "usage": {"requests": total_requests, "total_tokens": total_tokens, "failed_requests": total_failures, "fallback_requests": total_fallbacks}, "providers": providers_out}

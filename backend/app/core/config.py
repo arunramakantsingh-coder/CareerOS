@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # Provider-neutral Intelligence Engine gateway. The local model/runtime is optional
     # until the host hardware check selects and configures a concrete model.
     INTELLIGENCE_BASE_URL: str = "http://intelligence:8100"
-    INTELLIGENCE_STATUS_TIMEOUT_SECONDS: float = 8.0
+    INTELLIGENCE_STATUS_TIMEOUT_SECONDS: float = 360.0
 
     class Config:
         env_file = ".env"

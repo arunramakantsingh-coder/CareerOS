@@ -46,11 +46,15 @@ class ApiClient {
   async openDocumentContent(id: string): Promise<Blob> { const token = this.token(); const response = await fetch(`${resolveApiBaseUrl()}/api/v1/identity/documents/${id}/content`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' }); if (!response.ok) throw new Error(`Unable to open document (HTTP ${response.status})`); return response.blob(); }
   reclassifyDocument(id: string) { return this.post<any>(`/api/v1/identity/documents/${id}/reclassify`, {}); }
   aiEnrichDocument(id: string) { return this.post<any>(`/api/v1/identity/documents/${id}/ai-enrich`, {}); }
+  startAIReconciliationJob(id: string) { return this.post<any>(`/api/v1/identity/documents/${id}/ai-reconcile-job`, {}); }
+  aiReconciliationJob(id: string, jobId: string) { return this.get<any>(`/api/v1/identity/documents/${id}/ai-reconcile-job/${jobId}`); }
   generatePersonaSuggestions() { return this.post<any[]>('/api/v1/identity/personas/suggestions/generate', {}); }
   personaSuggestions() { return this.get<any[]>('/api/v1/identity/personas/suggestions'); }
   activatePersonaSuggestion(id: string) { return this.post<any>(`/api/v1/identity/personas/suggestions/${id}/activate`, {}); }
   connectionDiagnostics() { return this.get<any>('/api/v1/identity/connections/diagnostics'); }
   intelligenceProviders() { return this.get<any>('/api/v1/intelligence/providers'); }
+  intelligenceObservability() { return this.get<any>('/api/v1/intelligence/observability'); }
+  updateIntelligenceRoutingPolicy(body: { provider: string; fallback_enabled: boolean; daily_request_limit?: number | null }) { return this.post<any>('/api/v1/intelligence/routing/policy', body); }
   saveIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/save', body); }
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }
   testIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }

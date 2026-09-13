@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # until the host hardware check selects and configures a concrete model.
     INTELLIGENCE_BASE_URL: str = "http://intelligence:8100"
     INTELLIGENCE_STATUS_TIMEOUT_SECONDS: float = 360.0
+    # Dedicated production secret is preferred. Local development safely derives the
+    # encryption key from AUTH_SECRET_KEY when this is not supplied.
+    INTELLIGENCE_CREDENTIAL_ENCRYPTION_KEY: str = ""
 
     class Config:
         env_file = ".env"

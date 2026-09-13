@@ -45,6 +45,12 @@ class ProviderActivateRequest(BaseModel):
     provider: str = Field(min_length=2, max_length=50)
 
 
+class RoutingPolicyRequest(BaseModel):
+    provider: str = Field(min_length=2, max_length=50)
+    fallback_enabled: bool = True
+    daily_request_limit: int | None = Field(default=None, ge=1, le=1000000)
+
+
 def _ensure_catalog_rows(db: Session) -> None:
     changed = False
     env_provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
@@ -54,7 +60,7 @@ def _ensure_catalog_rows(db: Session) -> None:
         if row:
             continue
         env_key = env_keys.get(name, "")
-        db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], encrypted_api_key=encrypt_secret(env_key) if env_key else None, api_key_last4=env_key[-4:] if env_key else None, configured=(name == "ollama" or bool(env_key)), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "manual", "fallback_enabled": False}))
+        db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], encrypted_api_key=encrypt_secret(env_key) if env_key else None, api_key_last4=env_key[-4:] if env_key else None, configured=(name == "ollama" or bool(env_key)), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "deterministic", "fallback_enabled": True, "daily_request_limit": None}))
         changed = True
     if changed:
         db.flush()
@@ -67,7 +73,10 @@ def _ensure_catalog_rows(db: Session) -> None:
 
 
 def _public_provider(row: IntelligenceProviderConfig) -> dict[str, Any]:
-    return {"provider": row.provider, "label": row.label, "category": row.category, "model": row.model, "base_url": row.base_url, "configured": bool(row.configured), "active": bool(row.active), "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": row.routing_policy or {}, "api_key_present": bool(row.encrypted_api_key), "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error}
+    metadata = row.metadata_json or {}
+    telemetry = metadata.get("telemetry") or {}
+    policy = row.routing_policy or {}
+    return {"provider": row.provider, "label": row.label, "category": row.category, "model": row.model, "base_url": row.base_url, "configured": bool(row.configured), "active": bool(row.active), "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": policy, "api_key_present": bool(row.encrypted_api_key), "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error, "telemetry": telemetry}
 
 
 def _gateway_config(row: IntelligenceProviderConfig, supplied_key: str | None = None) -> dict[str, Any]:
@@ -101,6 +110,44 @@ async def providers(db: Session = Depends(get_db), _: User = Depends(get_current
     return {"active_provider": active, "providers": [_public_provider(row) for row in rows]}
 
 
+@router.get("/observability")
+async def observability(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    _ensure_catalog_rows(db)
+    rows = db.query(IntelligenceProviderConfig).order_by(IntelligenceProviderConfig.priority, IntelligenceProviderConfig.label).all()
+    configured = [row for row in rows if row.configured]
+    providers_out = []
+    total_requests = total_tokens = total_failures = total_fallbacks = 0
+    for row in rows:
+        telemetry = (row.metadata_json or {}).get("telemetry") or {}
+        total_requests += int(telemetry.get("requests") or 0)
+        total_tokens += int(telemetry.get("total_tokens") or 0)
+        total_failures += int(telemetry.get("failed_requests") or 0)
+        total_fallbacks += int(telemetry.get("fallback_requests") or 0)
+        providers_out.append({"provider": row.provider, "label": row.label, "configured": bool(row.configured), "active": bool(row.active), "model": row.model, "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": row.routing_policy or {"mode": "deterministic", "fallback_enabled": True}, "telemetry": telemetry, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error})
+    active = next((row for row in rows if row.active), None)
+    routing = {
+        "strategy": "deterministic capability + priority",
+        "active_provider": active.provider if active else None,
+        "fallback_enabled": bool((active.routing_policy or {}).get("fallback_enabled", True)) if active else False,
+        "configured_provider_order": [row.provider for row in sorted(configured, key=lambda x: (x.priority, x.label))],
+        "tasks": {"cv_extraction": ["structured_output"], "profile_reconciliation": ["structured_output", "reasoning"], "document_classification": ["structured_output"], "persona_generation": ["reasoning"], "jd_analysis": ["reasoning", "long_context"], "matching": ["reasoning", "structured_output"], "research": ["long_context"], "interview_intelligence": ["reasoning"], "embedding": ["embedding"], "bulk_processing": ["fast", "structured_output"]},
+    }
+    return {"routing": routing, "usage": {"requests": total_requests, "total_tokens": total_tokens, "failed_requests": total_failures, "fallback_requests": total_fallbacks}, "providers": providers_out}
+
+
+@router.post("/routing/policy")
+async def routing_policy(request: RoutingPolicyRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    _ensure_catalog_rows(db)
+    row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == request.provider.strip().lower()).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Provider not found: {request.provider}")
+    policy = dict(row.routing_policy or {})
+    policy.update({"mode": "deterministic", "fallback_enabled": request.fallback_enabled, "daily_request_limit": request.daily_request_limit})
+    row.routing_policy = policy
+    db.commit()
+    return {"provider": _public_provider(row)}
+
+
 def _save_row(db: Session, request: ProviderSaveRequest) -> IntelligenceProviderConfig:
     name = request.provider.strip().lower()
     if name not in PROVIDER_CATALOG: raise HTTPException(status_code=400, detail=f"Unsupported Intelligence provider: {name}")
@@ -116,6 +163,9 @@ def _save_row(db: Session, request: ProviderSaveRequest) -> IntelligenceProvider
         secret = request.api_key.strip(); row.encrypted_api_key = encrypt_secret(secret); row.api_key_last4 = secret[-4:]
     row.configured = True if name == "ollama" else bool(row.encrypted_api_key)
     row.last_error = None
+    policy = dict(row.routing_policy or {})
+    policy.setdefault("mode", "deterministic"); policy.setdefault("fallback_enabled", True); policy.setdefault("daily_request_limit", None)
+    row.routing_policy = policy
     return row
 
 
@@ -141,7 +191,11 @@ async def activate_provider(request: ProviderActivateRequest, db: Session = Depe
     if not row: raise HTTPException(status_code=404, detail=f"Provider not found: {name}")
     if name != "ollama" and not row.encrypted_api_key: raise HTTPException(status_code=400, detail="Save provider credentials before activating this provider")
     if not row.configured: raise HTTPException(status_code=400, detail="Provider is not configured")
-    db.query(IntelligenceProviderConfig).update({"active": False}); row.active = True; row.last_error = None; db.commit()
+    db.query(IntelligenceProviderConfig).update({"active": False}); row.active = True; row.last_error = None
+    policy = dict(row.routing_policy or {})
+    policy.update({"mode": "deterministic", "fallback_enabled": True})
+    row.routing_policy = policy
+    db.commit()
     return {"active_provider": name, "provider": _public_provider(row)}
 
 
@@ -164,7 +218,7 @@ async def test_provider(request: ProviderSaveRequest, db: Session = Depends(get_
 
 @router.get("/capabilities")
 async def capabilities(_: User = Depends(get_current_user)):
-    return {"capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis"], "tools": registry.list()}
+    return {"capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "fallback_routing", "usage_policy", "telemetry"], "tools": registry.list()}
 
 
 @router.get("/tools")

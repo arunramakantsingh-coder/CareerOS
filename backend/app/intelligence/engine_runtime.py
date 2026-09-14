@@ -21,6 +21,7 @@ from app.models.intelligence_provider import IntelligenceProviderConfig
 TASK_REQUIREMENTS: dict[str, list[str]] = {
     "cv_extraction": ["structured_output"],
     "profile_reconciliation": ["structured_output", "reasoning"],
+    "profile_validation": ["structured_output", "reasoning"],
     "document_classification": ["structured_output"],
     "persona_generation": ["reasoning"],
     "jd_analysis": ["reasoning", "long_context"],
@@ -182,6 +183,9 @@ class RoutedIntelligenceEngine:
                     response = await client.post(f"{self.base_url}/v1/generate", json=merged)
                     response.raise_for_status()
                     body = response.json()
+                response_text = body.get("response")
+                if not isinstance(response_text, str) or not response_text.strip():
+                    raise RuntimeError(f"{row.provider} returned an empty AI response")
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 fallback_used = index > 0
                 self._record_telemetry(row.provider, body.get("model"), elapsed_ms, True, None, fallback_used, body.get("input_tokens"), body.get("output_tokens"))
@@ -254,6 +258,7 @@ class RoutedIntelligenceEngine:
     @staticmethod
     def _infer_task_type(task: str) -> str:
         text = task.lower()
+        if "profile validation" in text or "post-reconciliation" in text or "quality audit" in text: return "profile_validation"
         if "profile reconciliation" in text or "reconcile" in text: return "profile_reconciliation"
         if "cv" in text or "resume" in text or "professional profile" in text: return "cv_extraction"
         if "persona" in text: return "persona_generation"

@@ -10,6 +10,7 @@ from app.core.database import SessionLocal, get_db
 from app.core.security import get_current_user
 from app.intelligence.ai_cv_ingestion import AICVIngestionError, ingest_cv_with_ai
 from app.intelligence.document_enrichment import DocumentEnrichmentError, enrich_document
+from app.intelligence.profile_validation import ProfileValidationError, validate_reconciled_profile
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
 from app.models.user import User
@@ -56,17 +57,31 @@ def _run_reconciliation(document_id: UUID, profile_id: UUID, job_id: str) -> Non
         _set_status(document, job_id, "ai_processing", "Sending CV to the active Intelligence Engine route", 30)
         db.commit()
         result = ingest_cv_with_ai(document, profile, db)
-        _set_status(document, job_id, "reconciling_profile", "Validating and reconciling extracted profile facts", 75)
+        _set_status(document, job_id, "reconciling_profile", "Validating and reconciling extracted profile facts", 70)
         db.commit()
         try:
             enrich_document(document, profile, db)
         except DocumentEnrichmentError:
             pass
-        _set_status(document, job_id, "persisting", "Persisting the validated Professional Profile result", 90)
+        _set_status(document, job_id, "profile_validation", "Running final AI validation against the populated Professional Profile", 85)
+        db.commit()
+        try:
+            validation = validate_reconciled_profile(document, profile, db)
+        except ProfileValidationError as exc:
+            validation = {
+                "status": "needs_review",
+                "summary": "Post-reconciliation AI validation returned an invalid validation payload.",
+                "issues": [{"section": "profile", "type": "validation_parse_error", "severity": "warning", "description": str(exc)[:500]}],
+                "duplicate_candidates": [],
+            }
+        metadata = dict(document.source_metadata or {})
+        metadata["ai_profile_validation"] = validation
+        document.source_metadata = metadata
+        _set_status(document, job_id, "persisting", "Persisting the validated Professional Profile result", 95)
         db.commit()
         _set_status(document, job_id, "completed", "CV reconciliation completed", 100, status="completed")
         payload = dict(document.processing_status or {})
-        payload["result"] = result
+        payload["result"] = {**result, "validation": validation}
         document.processing_status = payload
         db.commit()
     except Exception as exc:

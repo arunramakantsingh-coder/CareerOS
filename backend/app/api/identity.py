@@ -32,7 +32,7 @@ STORAGE_ROOT = Path(__import__("os").getenv("CAREEROS_STORAGE_ROOT", "/app/stora
 def profile_for(user: User, db: Session) -> CandidateProfile:
     profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == user.id, CandidateProfile.is_active.is_(True)).first()
     if not profile:
-        profile = CandidateProfile(user_id=user.id, full_name=user.name, primary_email=user.email, reconciliation_status="pending")
+        profile = CandidateProfile(user_id=user.id, full_name=None, primary_email=None, reconciliation_status="pending")
         db.add(profile); db.commit(); db.refresh(profile)
     return profile
 
@@ -183,50 +183,24 @@ def generate_persona_suggestions(user: User = Depends(get_current_user), db: Ses
         name=titles[0]
         if name in existing: continue
         supporting_docs=[str(x.id) for x in docs]
-        reason=f"Suggested because your career evidence contains signals for {family}: {', '.join(hits[:5])}."
-        missing=[]
-        if not certs: missing.append("Add or confirm relevant credentials if you hold them")
-        if not experiences: missing.append("Add employment history")
-        suggestion=PersonaSuggestion(id=uuid4(),user_id=user.id,candidate_id=profile.id,name=name,role_family=family,positioning=f"Position the same Career Vault evidence around {name.lower()} outcomes without changing the underlying facts.",target_titles=titles,supporting_fact_ids=[str(x.id) for x in experiences+skills+certs],supporting_document_ids=supporting_docs,missing_evidence=missing,confidence=confidence,reason=reason,status="suggested")
-        db.add(suggestion); created.append(suggestion); existing.add(name)
-    db.commit()
-    return [{"id":str(x.id),"name":x.name,"role_family":x.role_family,"positioning":x.positioning,"target_titles":x.target_titles or [],"confidence":x.confidence,"reason":x.reason,"missing_evidence":x.missing_evidence or [],"supporting_document_ids":x.supporting_document_ids or []} for x in created]
+        reason=f"Suggested because your career evidence contains signals for {family}: {', '.join(hits[:5])}"
+        created.append(PersonaSuggestion(user_id=user.id,name=name,role_family=family,positioning=titles[0],target_titles=titles,confidence=confidence,reason=reason,supporting_document_ids=supporting_docs,status="suggested"))
+    if created:
+        db.add_all(created); db.commit()
+    return {"suggestions":[{"id":str(x.id),"name":x.name,"role_family":x.role_family,"positioning":x.positioning,"target_titles":x.target_titles or [],"confidence":x.confidence,"reason":x.reason,"missing_evidence":x.missing_evidence or [],"supporting_document_ids":x.supporting_document_ids or []} for x in created]}
 
 
-@router.get("/personas/suggestions")
-def persona_suggestions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    rows=db.query(PersonaSuggestion).filter(PersonaSuggestion.user_id==user.id).order_by(PersonaSuggestion.confidence.desc()).all()
-    return [{"id":str(x.id),"name":x.name,"role_family":x.role_family,"positioning":x.positioning,"target_titles":x.target_titles or [],"confidence":x.confidence,"reason":x.reason,"missing_evidence":x.missing_evidence or [],"status":x.status,"supporting_document_ids":x.supporting_document_ids or []} for x in rows]
+@router.get("/career-profile")
+def career_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = profile_for(user, db)
+    item = db.query(CareerProfile).filter(CareerProfile.candidate_id == profile.id).first()
+    if not item:
+        return {"profile": None}
+    return {"profile": {k: getattr(item, k) for k in item.__table__.columns.keys() if k not in {"id", "candidate_id"}}}
 
 
-def ensure_career_profile(user: User, candidate: CandidateProfile, db: Session) -> CareerProfile:
-    cp=db.query(CareerProfile).filter(CareerProfile.user_id==user.id,CareerProfile.is_active.is_(True)).first()
-    if not cp:
-        cp=CareerProfile(user_id=user.id,is_active=True)
-        db.add(cp)
-    cp.name=candidate.full_name or cp.name; cp.description=candidate.summary or cp.description; cp.seniority=candidate.seniority or cp.seniority
-    cp.years_experience=int(candidate.years_experience) if candidate.years_experience else cp.years_experience
-    cp.preferred_locations=(candidate.work_preferences or {}).get("preferred_locations") or cp.preferred_locations
-    cp.remote_preference=(candidate.work_preferences or {}).get("remote_preference") or cp.remote_preference
-    cp.target_roles=(candidate.work_preferences or {}).get("target_roles") or cp.target_roles
-    cp.industries=candidate.industries or cp.industries
-    db.flush(); return cp
-
-
-@router.post("/personas/suggestions/{suggestion_id}/activate")
-def activate_persona_suggestion(suggestion_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    profile=profile_for(user,db); suggestion=db.query(PersonaSuggestion).filter(PersonaSuggestion.id==suggestion_id,PersonaSuggestion.user_id==user.id,PersonaSuggestion.candidate_id==profile.id).first()
-    if not suggestion: raise HTTPException(404,"Persona suggestion not found")
-    cp=ensure_career_profile(user,profile,db)
-    persona=Persona(user_id=user.id,career_profile_id=cp.id,name=suggestion.name,description=suggestion.reason,positioning=suggestion.positioning,target_titles=suggestion.target_titles,target_industries=profile.industries or [],target_locations=(profile.work_preferences or {}).get("preferred_locations") or [],preferred_seniority=profile.seniority,remote_preference=(profile.work_preferences or {}).get("remote_preference") or "Any",is_active=False,is_default=False,keywords=[])
-    db.add(persona); suggestion.status="activated"; db.commit(); db.refresh(persona)
-    return {"id":str(persona.id),"name":persona.name,"status":"activated"}
-
-
-@router.get("/connections/diagnostics")
-def connection_diagnostics(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    rows=db.query(EmailConnectorAccount).filter(EmailConnectorAccount.user_id==user.id).all()
-    external=[]
-    for x in db.query(__import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity).filter(__import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity.user_id==user.id, __import__("app.models.external_identity",fromlist=["ExternalIdentity"]).ExternalIdentity.is_active.is_(True)).all():
-        external.append({"id":str(x.id),"provider":x.provider,"provider_email":x.provider_email,"scopes":x.scopes or [],"token_status":"present" if x.access_token else "missing","token_expires_at":x.token_expires_at,"last_used":x.last_used})
-    return {"email_sources":[{"id":str(x.id),"provider":x.provider,"email_address":x.email_address,"status":x.status,"auth_method":x.auth_method,"capabilities":x.capabilities or {},"scopes":x.scopes or [],"token_expires_at":x.token_expires_at,"last_sync_at":x.last_sync_at,"last_sync_status":x.last_sync_status,"last_error_code":x.last_error_code,"last_error_message":x.last_error_message} for x in rows],"external_identities":external,"provider_catalog":[{"provider":"google","label":"Gmail / Google Workspace","status":"available","capabilities":["read_messages","read_threads","search_messages"]},{"provider":"microsoft","label":"Outlook / Microsoft 365","status":"available","capabilities":["read_messages","read_threads","search_messages"]},{"provider":"imap","label":"IMAP / SMTP","status":"coming_later","capabilities":["read_messages","search_messages","send_message"]},{"provider":"yahoo","label":"Yahoo Mail","status":"coming_later","capabilities":["read_messages","search_messages"]},{"provider":"icloud","label":"iCloud Mail","status":"coming_later","capabilities":["read_messages","search_messages"]}]}
+@router.get("/overview/enriched")
+def identity_overview_enriched(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = profile_for(user, db)
+    base = identity_overview(user, db)
+    return {**base, "projects": profile.projects or [], "accomplishments": profile.accomplishments or []}

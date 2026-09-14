@@ -82,12 +82,14 @@ def _run_reconciliation(document_id: UUID, profile_id: UUID, job_id: str) -> Non
     except Exception as exc:
         if document:
             # The AI pipeline is transactional: a failed run must not leave a half-built profile.
-            failed_stage = (document.processing_status or {}).get("stage") or "unknown"
+            status_before_rollback = dict(document.processing_status or {})
+            failed_stage = status_before_rollback.get("stage") or "unknown"
+            failed_progress = int(status_before_rollback.get("progress") or 0)
             db.rollback()
             document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile_id).first()
             if document:
                 payload = dict(document.processing_status or {})
-                payload.update({"job_id": job_id, "status": "failed", "stage": "failed", "failed_stage": failed_stage, "message": "CV reconciliation failed", "progress": 100, "updated_at": datetime.now(timezone.utc).isoformat(), "error": str(exc)[:1000]})
+                payload.update({"job_id": job_id, "status": "failed", "stage": "failed", "failed_stage": failed_stage, "message": "CV reconciliation failed", "progress": failed_progress, "updated_at": datetime.now(timezone.utc).isoformat(), "error": str(exc)[:1000]})
                 document.processing_status = payload
                 document.processing_stage = "failed"
                 document.status = "failed"

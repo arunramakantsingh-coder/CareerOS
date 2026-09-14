@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, get_db
 from app.core.security import get_current_user
 from app.intelligence.ai_cv_ingestion import AICVIngestionError, ingest_cv_with_ai
-from app.intelligence.document_enrichment import DocumentEnrichmentError, enrich_document
 from app.intelligence.profile_validation import ProfileValidationError, validate_reconciled_profile
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
@@ -45,24 +44,20 @@ def _run_reconciliation(document_id: UUID, profile_id: UUID, job_id: str) -> Non
         profile = db.query(CandidateProfile).filter(CandidateProfile.id == profile_id).first()
         if not document or not profile:
             return
-        _set_status(document, job_id, "validating_document", "Validating CV and extracted text", 10)
+        _set_status(document, job_id, "validating_document", "Validating CV and stored source text", 10)
         db.commit()
         if document.document_category != "cv":
             raise AICVIngestionError("AI profile building is only supported for CV documents")
         extracted = (document.source_metadata or {}).get("extracted_text", "")
         if not isinstance(extracted, str) or not extracted.strip():
-            raise AICVIngestionError("No extracted document text is available")
+            raise AICVIngestionError("No stored CV source text is available")
         _set_status(document, job_id, "routing", "Selecting the Global Intelligence Engine route", 20)
         db.commit()
-        _set_status(document, job_id, "ai_processing", "Sending CV to the active Intelligence Engine route", 30)
+        _set_status(document, job_id, "ai_processing", "Waiting for the selected AI provider to return the structured CV profile", 30)
         db.commit()
         result = ingest_cv_with_ai(document, profile, db)
-        _set_status(document, job_id, "reconciling_profile", "Validating and reconciling extracted profile facts", 70)
+        _set_status(document, job_id, "reconciling_profile", "Reconciling AI-extracted facts into the Professional Profile", 70)
         db.commit()
-        try:
-            enrich_document(document, profile, db)
-        except DocumentEnrichmentError:
-            pass
         _set_status(document, job_id, "profile_validation", "Running final AI validation against the populated Professional Profile", 85)
         db.commit()
         try:
@@ -86,12 +81,16 @@ def _run_reconciliation(document_id: UUID, profile_id: UUID, job_id: str) -> Non
         db.commit()
     except Exception as exc:
         if document:
-            # Never commit partial profile mutations from a failed reconciliation.
-            # Roll back first, then persist only the failure status in a fresh transaction.
+            # The AI pipeline is transactional: a failed run must not leave a half-built profile.
+            failed_stage = (document.processing_status or {}).get("stage") or "unknown"
             db.rollback()
-            failed_document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile_id).first()
-            if failed_document:
-                _set_status(failed_document, job_id, "failed", "CV reconciliation failed", 100, status="failed", error=str(exc)[:1000])
+            document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile_id).first()
+            if document:
+                payload = dict(document.processing_status or {})
+                payload.update({"job_id": job_id, "status": "failed", "stage": "failed", "failed_stage": failed_stage, "message": "CV reconciliation failed", "progress": 100, "updated_at": datetime.now(timezone.utc).isoformat(), "error": str(exc)[:1000]})
+                document.processing_status = payload
+                document.processing_stage = "failed"
+                document.status = "failed"
                 db.commit()
     finally:
         db.close()
@@ -124,4 +123,4 @@ def get_ai_reconciliation_job(document_id: UUID, job_id: str, user: User = Depen
     status = document.processing_status or {}
     if status.get("job_id") != job_id:
         raise HTTPException(404, "Reconciliation job not found")
-    return {"status": status.get("status", "unknown"), "job_id": job_id, "document_id": str(document.id), "stage": status.get("stage"), "message": status.get("message"), "progress": status.get("progress", 0), "updated_at": status.get("updated_at"), "error": status.get("error"), "result": status.get("result")}
+    return {"status": status.get("status", "unknown"), "job_id": job_id, "document_id": str(document.id), "stage": status.get("stage"), "failed_stage": status.get("failed_stage"), "message": status.get("message"), "progress": status.get("progress", 0), "updated_at": status.get("updated_at"), "error": status.get("error"), "result": status.get("result")}

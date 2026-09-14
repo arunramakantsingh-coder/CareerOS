@@ -12,13 +12,19 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.roles import require_developer
 from app.intelligence.credential_store import decrypt_secret
+from app.intelligence.health_policy import (
+    DEFAULT_HEALTH_POLICY,
+    apply_policy_to_rows,
+    health_is_fresh,
+    health_ttl_seconds,
+    policy_from_rows,
+)
 from app.models.intelligence_provider import IntelligenceProviderConfig
 from app.models.user import User
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence-health"])
 GATEWAY_BASE_URL = os.getenv("INTELLIGENCE_BASE_URL", "http://intelligence:8100").rstrip("/")
 HEALTH_TIMEOUT = float(os.getenv("INTELLIGENCE_HEALTH_CHECK_TIMEOUT_SECONDS", "30"))
-HEALTH_TTL = int(os.getenv("INTELLIGENCE_HEALTH_TTL_SECONDS", "900"))
 
 
 class HealthCheckRequest(BaseModel):
@@ -28,18 +34,29 @@ class HealthCheckRequest(BaseModel):
     base_url: str | None = None
 
 
+class HealthPolicyRequest(BaseModel):
+    enabled: bool = True
+    interval_seconds: int = Field(default=900, ge=300, le=21600)
+    grace_seconds: int = Field(default=60, ge=0, le=900)
+
+
 def _health(row: IntelligenceProviderConfig) -> dict[str, Any]:
     return dict((row.metadata_json or {}).get("health") or {})
 
 
-def _fresh(health: dict[str, Any]) -> bool:
+def _fresh(health: dict[str, Any], ttl_seconds: int) -> bool:
     if health.get("status") != "healthy" or not health.get("checked_at"):
         return False
     try:
         checked = datetime.fromisoformat(str(health["checked_at"]).replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc) - checked).total_seconds() <= HEALTH_TTL
+        return (datetime.now(timezone.utc) - checked).total_seconds() <= ttl_seconds
     except ValueError:
         return False
+
+
+def get_health_policy(db: Session) -> dict[str, Any]:
+    rows = db.query(IntelligenceProviderConfig).order_by(IntelligenceProviderConfig.provider).all()
+    return policy_from_rows(rows)
 
 
 def _record_health(row: IntelligenceProviderConfig, result: dict[str, Any]) -> dict[str, Any]:
@@ -99,11 +116,51 @@ async def _check(row: IntelligenceProviderConfig, request: HealthCheckRequest | 
         return {"provider": row.provider, "model": row.model, "status": "unhealthy", "reachable": False, "error": str(exc)[:500]}
 
 
+async def _run_configured_health_checks(db: Session) -> dict[str, Any]:
+    rows = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.configured.is_(True)).order_by(IntelligenceProviderConfig.priority, IntelligenceProviderConfig.label).all()
+    results = []
+    for row in rows:
+        result = await _check(row)
+        health = _record_health(row, result)
+        results.append({"provider": row.provider, "label": row.label, "model": row.model, "health": health})
+    db.commit()
+    return {
+        "health_ttl_seconds": health_ttl_seconds(get_health_policy(db)),
+        "providers": results,
+        "healthy": sum(1 for item in results if item["health"].get("status") == "healthy"),
+        "total": len(results),
+    }
+
+
+@router.get("/providers/health-policy")
+async def provider_health_policy(db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    policy = get_health_policy(db)
+    return {
+        **policy,
+        "health_ttl_seconds": health_ttl_seconds(policy),
+        "min_interval_seconds": 300,
+        "max_interval_seconds": 21600,
+    }
+
+
+@router.post("/providers/health-policy")
+async def update_provider_health_policy(request: HealthPolicyRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    rows = db.query(IntelligenceProviderConfig).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Provider registry is empty")
+    policy = apply_policy_to_rows(rows, request.model_dump())
+    db.commit()
+    return {**policy, "health_ttl_seconds": health_ttl_seconds(policy)}
+
+
 @router.get("/providers/health")
 async def provider_health(db: Session = Depends(get_db), _: User = Depends(require_developer)):
     rows = db.query(IntelligenceProviderConfig).order_by(IntelligenceProviderConfig.priority, IntelligenceProviderConfig.label).all()
+    policy = policy_from_rows(rows)
+    ttl = health_ttl_seconds(policy)
     return {
-        "health_ttl_seconds": HEALTH_TTL,
+        "health_ttl_seconds": ttl,
+        "health_policy": policy,
         "providers": [
             {
                 "provider": row.provider,
@@ -113,7 +170,7 @@ async def provider_health(db: Session = Depends(get_db), _: User = Depends(requi
                 "model": row.model,
                 "priority": row.priority,
                 "health": _health(row),
-                "health_fresh": _fresh(_health(row)),
+                "health_fresh": _fresh(_health(row), ttl),
             }
             for row in rows
         ],
@@ -136,4 +193,5 @@ async def run_provider_health_check(request: HealthCheckRequest, db: Session = D
         health = _record_health(row, result)
         results.append({"provider": row.provider, "label": row.label, "model": row.model, "health": health})
     db.commit()
-    return {"health_ttl_seconds": HEALTH_TTL, "providers": results}
+    policy = get_health_policy(db)
+    return {"health_ttl_seconds": health_ttl_seconds(policy), "health_policy": policy, "providers": results}

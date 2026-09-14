@@ -66,7 +66,14 @@ class OpenAICompatibleProvider:
         if system: messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         payload: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": temperature}
-        if response_schema: payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "careeros_result", "strict": True, "schema": response_schema}}
+        if response_schema:
+            if self.name == "openrouter":
+                # OpenRouter's current free Gemma endpoints support JSON output mode,
+                # but do not enforce a JSON Schema. The application still validates
+                # the returned JSON before any profile mutation.
+                payload["response_format"] = {"type": "json_object"}
+            else:
+                payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "careeros_result", "strict": True, "schema": response_schema}}
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json", "X-Title": "CareerOS"}
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -131,7 +138,7 @@ def build_provider(config: dict[str, str], timeout: float) -> AIProvider:
     if provider_name == "ollama": return OllamaProvider(base_url or "http://host.docker.internal:11434", model or config.get("OLLAMA_MODEL", ""), timeout)
     if provider_name == "gemini": return GeminiProvider(api_key, model or "gemini-3.5-flash-lite", timeout)
     if provider_name == "anthropic": return AnthropicProvider(api_key, model or "claude-sonnet-5", base_url or "https://api.anthropic.com", timeout)
-    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16e-instruct"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro")}
+    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b-it:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16-instruct"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro")}
     if provider_name in defaults:
         default_url, default_model = defaults[provider_name]
         return OpenAICompatibleProvider(provider_name, api_key, model or default_model, base_url or default_url, timeout)

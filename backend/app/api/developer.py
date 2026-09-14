@@ -165,17 +165,20 @@ def reset_test_data(request: ResetRequest, user: User = Depends(require_develope
             for collection in (profile.experiences, profile.educations, profile.certifications, profile.skills):
                 for item in list(collection):
                     db.delete(item)
-            profile.full_name = user.name
+            profile.full_name = None
             profile.location = None
             profile.title = None
             profile.summary = None
             profile.linkedin_url = None
-            profile.primary_email = user.email
+            profile.linkedin_username = None
+            profile.primary_email = None
             profile.primary_phone = None
             profile.work_preferences = None
             profile.years_experience = None
             profile.industries = None
             profile.seniority = None
+            profile.projects = None
+            profile.accomplishments = None
             profile.completeness_score = 0
             profile.completeness_breakdown = None
             profile.reconciliation_status = "pending"

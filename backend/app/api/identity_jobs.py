@@ -86,8 +86,13 @@ def _run_reconciliation(document_id: UUID, profile_id: UUID, job_id: str) -> Non
         db.commit()
     except Exception as exc:
         if document:
-            _set_status(document, job_id, "failed", "CV reconciliation failed", 100, status="failed", error=str(exc)[:1000])
-            db.commit()
+            # Never commit partial profile mutations from a failed reconciliation.
+            # Roll back first, then persist only the failure status in a fresh transaction.
+            db.rollback()
+            failed_document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile_id).first()
+            if failed_document:
+                _set_status(failed_document, job_id, "failed", "CV reconciliation failed", 100, status="failed", error=str(exc)[:1000])
+                db.commit()
     finally:
         db.close()
 

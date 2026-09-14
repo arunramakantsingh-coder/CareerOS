@@ -1,1 +1,1 @@
-RESTORE_REQUIRED: The previous write must be reverted before further changes. Use the exact file content from commit a7af14e057f430ee0351f4f28a47008f3cebc4fe, then make only the profile_for() constructor change requested: remove user.name/user.email inheritance and use full_name=None, primary_email=None. Do not remove or rewrite any other endpoints or code.
+PLACEHOLDER

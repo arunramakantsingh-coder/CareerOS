@@ -10,10 +10,12 @@ from app.intelligence.engine_runtime import RoutedIntelligenceEngine
 from app.intelligence.provider_validation import ProviderConfigurationError, validate_provider_configuration
 
 
-def row(name: str, *, active: bool = True, configured: bool = True, capabilities=None, checked_minutes_ago: int = 1, priority: int = 100, reliability=(9, 10), p95=100.0, avg=50.0, operator_primary=False, model="model"):
+def row(name: str, *, active: bool = True, configured: bool = True, capabilities=None, checked_minutes_ago: int = 1, priority: int = 100, reliability=(9, 10), p95=100.0, avg=50.0, operator_primary=False, model=None):
     successful, checks = reliability
     checked = (datetime.now(timezone.utc) - timedelta(minutes=checked_minutes_ago)).isoformat()
-    return SimpleNamespace(provider=name, label=name.title(), model=model, base_url="https://example.invalid", active=active, configured=configured, encrypted_api_key="encrypted" if name != "ollama" else None, priority=priority, capabilities=capabilities or ["structured_output", "reasoning"], routing_policy={"fallback_enabled": True, "daily_request_limit": None, "operator_primary": operator_primary}, metadata_json={"health": {"status": "healthy", "checked_at": checked, "successful_checks": successful, "checks": checks, "consecutive_failures": 0, "p95_latency_ms": p95, "avg_latency_ms": avg, "quota": {}}})
+    model = model or ("openrouter/free" if name == "openrouter" else "gemma3:4b")
+    base_url = "https://openrouter.ai/api/v1" if name == "openrouter" else "http://host.docker.internal:11434"
+    return SimpleNamespace(provider=name, label=name.title(), model=model, base_url=base_url, active=active, configured=configured, encrypted_api_key="encrypted" if name != "ollama" else None, priority=priority, capabilities=capabilities or ["structured_output", "reasoning"], routing_policy={"fallback_enabled": True, "daily_request_limit": None, "operator_primary": operator_primary}, metadata_json={"health": {"status": "healthy", "checked_at": checked, "successful_checks": successful, "checks": checks, "consecutive_failures": 0, "p95_latency_ms": p95, "avg_latency_ms": avg, "quota": {}}})
 
 
 def test_deactivated_provider_never_selected(monkeypatch):

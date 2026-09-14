@@ -55,10 +55,13 @@ class ApiClient {
   intelligenceProviders() { return this.get<any>('/api/v1/intelligence/providers'); }
   intelligenceObservability() { return this.get<any>('/api/v1/intelligence/observability'); }
   intelligenceProviderHealth() { return this.get<any>('/api/v1/intelligence/providers/health'); }
+  intelligenceProviderHealthPolicy() { return this.get<any>('/api/v1/intelligence/providers/health-policy'); }
+  updateIntelligenceProviderHealthPolicy(body: { enabled: boolean; interval_seconds: number; grace_seconds?: number }) { return this.post<any>('/api/v1/intelligence/providers/health-policy', body); }
   runIntelligenceProviderHealthCheck(body: { provider?: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/health-check', body); }
   updateIntelligenceRoutingPolicy(body: { provider: string; fallback_enabled: boolean; daily_request_limit?: number | null }) { return this.post<any>('/api/v1/intelligence/routing/policy', body); }
   saveIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/save', body); }
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }
+  deactivateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/deactivate', { provider }); }
   testIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }
   configureIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/configure', body); }
   personas(userId: string) { return this.get<any[]>(`/api/v1/personas/?user_id=${encodeURIComponent(userId)}`); }

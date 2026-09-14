@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -64,6 +66,53 @@ class OpenAICompatibleProvider:
     def __init__(self, name: str, api_key: str, model: str, base_url: str, timeout: float) -> None:
         self.name, self.api_key, self.model, self.base_url, self.timeout = name, api_key, model, base_url.rstrip("/"), timeout
 
+    @staticmethod
+    def _openrouter_upstream_slug(response: httpx.Response) -> str | None:
+        """Extract the concrete upstream provider slug from an OpenRouter error."""
+        try:
+            body = response.json()
+            raw = ((body.get("error") or {}).get("metadata") or {}).get("raw")
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            if not isinstance(raw, dict):
+                return None
+            slug = raw.get("provider_slug")
+            if isinstance(slug, str) and slug.strip():
+                return slug.strip()
+            provider_name = raw.get("provider_name")
+            if not isinstance(provider_name, str) or not provider_name.strip():
+                return None
+            known = {
+                "google ai studio": "google-ai-studio",
+                "google vertex": "google-vertex",
+                "google vertex ai": "google-vertex",
+                "deepinfra": "deepinfra",
+                "darkbloom": "darkbloom",
+            }
+            normalized = re.sub(r"[^a-z0-9]+", "-", provider_name.strip().lower()).strip("-")
+            return known.get(provider_name.strip().lower(), normalized) or None
+        except (ValueError, TypeError, AttributeError):
+            return None
+
+    @staticmethod
+    def _openrouter_provider_preferences(response_schema: dict[str, Any] | None, ignore: list[str] | None = None) -> dict[str, Any]:
+        preferences: dict[str, Any] = {"allow_fallbacks": True}
+        if response_schema:
+            # The selected free Gemma model supports JSON output but not JSON-schema
+            # enforcement. Requiring parameter support prevents OpenRouter from
+            # sending structured requests to endpoints that cannot honor them.
+            preferences["require_parameters"] = True
+        if ignore:
+            preferences["ignore"] = ignore
+        return preferences
+
+    async def _post_openrouter(self, client: httpx.AsyncClient, payload: dict[str, Any], headers: dict[str, str], response_schema: dict[str, Any] | None) -> httpx.Response:
+        """Call OpenRouter and explicitly fail over after an upstream 429."""
+        try:
+            return await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+        except httpx.HTTPError:
+            raise
+
     async def generate(self, *, prompt: str, system: str | None, response_schema: dict[str, Any] | None, temperature: float) -> ProviderResult:
         if not self.api_key: raise ProviderError(f"{self.name} API key is not configured")
         if not self.model: raise ProviderError(f"{self.name} model is not configured")
@@ -79,11 +128,26 @@ class OpenAICompatibleProvider:
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json", "X-Title": "CareerOS"}
         if self.name == "openrouter":
             headers["HTTP-Referer"] = "https://github.com/arunramakantsingh-coder/CareerOS"
+            payload["provider"] = self._openrouter_provider_preferences(response_schema)
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+                if self.name == "openrouter" and response.status_code == 429:
+                    upstream_slug = self._openrouter_upstream_slug(response)
+                    if upstream_slug:
+                        retry_payload = dict(payload)
+                        retry_payload["provider"] = self._openrouter_provider_preferences(response_schema, [upstream_slug])
+                        retry_response = await client.post(f"{self.base_url}/chat/completions", json=retry_payload, headers=headers)
+                        if retry_response.is_success:
+                            response = retry_response
+                        else:
+                            original_detail = response.text[:1200]
+                            retry_detail = retry_response.text[:1200]
+                            raise ProviderError(f"openrouter upstream provider {upstream_slug} returned HTTP 429 and failover retry also failed with HTTP {retry_response.status_code}: {retry_detail}; original: {original_detail}")
                 response.raise_for_status()
                 body = response.json()
+        except ProviderError:
+            raise
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code if exc.response is not None else "error"
             detail = exc.response.text[:1600] if exc.response is not None else str(exc)

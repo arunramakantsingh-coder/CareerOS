@@ -24,7 +24,7 @@ STORAGE_ROOT = Path(os.getenv("CAREEROS_STORAGE_ROOT", "/app/storage/documents")
 def get_profile(current_user: User, db: Session) -> CandidateProfile:
     profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == current_user.id, CandidateProfile.is_active == True).first()
     if not profile:
-        profile = CandidateProfile(user_id=current_user.id, full_name=current_user.name, primary_email=current_user.email, reconciliation_status="pending")
+        profile = CandidateProfile(user_id=current_user.id, full_name=None, primary_email=None, reconciliation_status="pending")
         db.add(profile); db.commit(); db.refresh(profile)
     return profile
 
@@ -78,8 +78,6 @@ def persist_document(profile, filename, content, mime_type, db, batch_id, relati
             document.status = "processed"
             db.commit()
         except Exception as exc:
-            # Deterministic extraction is supporting infrastructure only. Raw source text
-            # remains authoritative input for the explicit AI profile-building workflow.
             metadata = dict(document.source_metadata or {})
             metadata["deterministic_extraction"] = {"status": "failed", "error": str(exc)[:500]}
             document.source_metadata = metadata

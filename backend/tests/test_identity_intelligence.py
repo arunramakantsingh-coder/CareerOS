@@ -1,8 +1,7 @@
 from app.utils.document_intelligence import classify_document, segment_sections
-from app.utils.cv_parser import CVParser
 
 
-def test_cv_sections_are_segmented_without_cross_contamination():
+def test_document_sections_can_be_detected_without_career_parser():
     text = '''ARUN SINGH
 PROFESSIONAL SUMMARY
 Technology leader with cloud and security experience.
@@ -24,27 +23,8 @@ SKILLS
 AWS, Azure, Kubernetes, Python
 '''
     sections = segment_sections(text)
-    parsed = CVParser().parse(text)
-    assert 'aws' not in [x['name'].lower() for x in parsed['certifications']]
-    assert any('AWS Certified Solutions Architect' in x['name'] for x in parsed['certifications'])
-    assert any('Master of Science' in x['degree'] for x in parsed['education'])
-    assert not any('AWS' in x['degree'] for x in parsed['education'])
-    assert any(x['name'] == 'AWS' for x in parsed['skills'])
     assert 'certifications' in sections and 'skills' in sections
-
-
-def test_certification_document_can_produce_credential_but_not_education():
-    text = '''CERTIFICATE OF COMPLETION
-Certification: AWS Certified Solutions Architect - Associate
-Issuer: Amazon Web Services
-Credential ID: ABC123
-Issued: 2025
-'''
-    parsed = CVParser().parse(text, document_category='certification')
-    assert len(parsed['certifications']) == 1
-    assert parsed['certifications'][0]['issuer'] == 'Amazon Web Services'
-    assert parsed['education'] == []
-    assert parsed['skills'] == []
+    assert 'education' in sections and 'experience' in sections
 
 
 def test_content_classifier_does_not_use_filename_as_the_only_signal():

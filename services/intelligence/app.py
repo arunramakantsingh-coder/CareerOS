@@ -132,6 +132,8 @@ async def generate(request: GenerateRequest) -> dict[str, Any]:
     try:
         provider = build_provider(_provider_config(request, provider_name), REQUEST_TIMEOUT)
         result = await provider.generate(prompt=request.prompt, system=request.system, response_schema=request.response_schema, temperature=request.temperature)
+        if not result.response or not result.response.strip():
+            raise ProviderError(f"{provider_name} returned an empty response")
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"provider": result.provider, "model": result.model, "response": result.response, "done": result.done, "total_duration": result.total_duration, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}

@@ -4,7 +4,8 @@ import os
 from typing import Any
 
 
-_DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b:free"
+# OpenRouter's concrete free model id. Do not use the dynamic openrouter/free router.
+_DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
 _configured_openrouter_model = os.getenv("OPENROUTER_MODEL", "").strip()
 if _configured_openrouter_model.lower() in {"", "openrouter/free", "openrouter/free:auto", "free"}:
     _configured_openrouter_model = _DEFAULT_OPENROUTER_MODEL

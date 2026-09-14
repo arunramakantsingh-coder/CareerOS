@@ -59,6 +59,9 @@ class ApiClient {
   updateIntelligenceProviderHealthPolicy(body: { enabled: boolean; interval_seconds: number; grace_seconds?: number }) { return this.post<any>('/api/v1/intelligence/providers/health-policy', body); }
   runIntelligenceProviderHealthCheck(body: { provider?: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/health-check', body); }
   updateIntelligenceRoutingPolicy(body: { provider: string; fallback_enabled: boolean; daily_request_limit?: number | null }) { return this.post<any>('/api/v1/intelligence/routing/policy', body); }
+  intelligenceRoutingPreview(taskType = 'profile_reconciliation') { return this.get<any>(`/api/v1/intelligence/routing/preview?task_type=${encodeURIComponent(taskType)}`); }
+  intelligenceRuntimeTraces(limit = 25) { return this.get<any>(`/api/v1/intelligence/runtime-traces?limit=${limit}`); }
+  intelligenceRuntimeTrace(traceId: string) { return this.get<any>(`/api/v1/intelligence/runtime-traces/${encodeURIComponent(traceId)}`); }
   saveIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/save', body); }
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }
   deactivateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/deactivate', { provider }); }

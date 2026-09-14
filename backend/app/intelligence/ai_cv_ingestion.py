@@ -10,158 +10,367 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from app.intelligence.contracts import IntelligenceRequest
+from app.intelligence.cv_ai_contract import CV_AI_INSTRUCTION, CV_AI_OUTPUT_SCHEMA
 from app.intelligence.engine import engine
-from app.intelligence.identity_reconciliation import EMPLOYMENT_SCHEMA, _apply_experiences, _sanitize_experience
 from app.models.candidate_certification import CandidateCertification
 from app.models.candidate_education import CandidateEducation
 from app.models.candidate_profile import CandidateProfile
 from app.models.candidate_skill import CandidateSkill
 from app.models.career_fact_evidence import CareerFactEvidence
 from app.models.document import Document
+from app.models.extraction_result import ExtractionResult
+from app.models.professional_experience import ProfessionalExperience
 
-SCHEMA: dict[str, Any] = {
-    "type": "object", "additionalProperties": False,
-    "properties": {
-        "profile": {"type": "object", "additionalProperties": False, "properties": {
-            "full_name": {"type": ["string", "null"]}, "location": {"type": ["string", "null"]}, "title": {"type": ["string", "null"]}, "summary": {"type": ["string", "null"]}, "primary_email": {"type": ["string", "null"]}, "primary_phone": {"type": ["string", "null"]}, "linkedin_url": {"type": ["string", "null"]}, "years_experience": {"type": ["number", "null"]}, "seniority": {"type": ["string", "null"]}, "industries": {"type": "array", "items": {"type": "string"}, "maxItems": 20}}, "required": ["full_name", "location", "title", "summary", "primary_email", "primary_phone", "linkedin_url", "years_experience", "seniority", "industries"]},
-        "experiences": EMPLOYMENT_SCHEMA["properties"]["experiences"],
-        "skills": {"type": "array", "maxItems": 120, "items": {"type": "object", "additionalProperties": False, "properties": {"name": {"type": "string"}, "category": {"type": "string"}, "proficiency": {"type": ["string", "null"]}}, "required": ["name", "category", "proficiency"]}},
-        "certifications": {"type": "array", "maxItems": 50, "items": {"type": "object", "additionalProperties": False, "properties": {"name": {"type": "string"}, "issuer": {"type": ["string", "null"]}, "issue_date": {"type": ["string", "null"]}, "expiry_date": {"type": ["string", "null"]}, "credential_reference": {"type": ["string", "null"]}}, "required": ["name", "issuer", "issue_date", "expiry_date", "credential_reference"]}},
-        "education": {"type": "array", "maxItems": 20, "items": {"type": "object", "additionalProperties": False, "properties": {"institution": {"type": "string"}, "degree": {"type": "string"}, "field_of_study": {"type": ["string", "null"]}, "start_date": {"type": ["string", "null"]}, "end_date": {"type": ["string", "null"]}, "grade": {"type": ["string", "null"]}}, "required": ["institution", "degree", "field_of_study", "start_date", "end_date", "grade"]}},
-        "projects": {"type": "array", "maxItems": 40, "items": {"type": "object", "additionalProperties": False, "properties": {"name": {"type": "string"}, "description": {"type": ["string", "null"]}, "role": {"type": ["string", "null"]}, "technologies": {"type": "array", "items": {"type": "string"}, "maxItems": 30}, "responsibilities": {"type": "array", "items": {"type": "string"}, "maxItems": 20}, "achievements": {"type": "array", "items": {"type": "string"}, "maxItems": 20}, "client": {"type": ["string", "null"]}, "start_date": {"type": ["string", "null"]}, "end_date": {"type": ["string", "null"]}}, "required": ["name", "description", "role", "technologies", "responsibilities", "achievements", "client", "start_date", "end_date"]}},
-        "accomplishments": {"type": "array", "maxItems": 50, "items": {"type": "object", "additionalProperties": False, "properties": {"title": {"type": "string"}, "description": {"type": ["string", "null"]}, "category": {"type": ["string", "null"]}, "date": {"type": ["string", "null"]}, "metrics": {"type": "array", "items": {"type": "string"}, "maxItems": 10}}, "required": ["title", "description", "category", "date", "metrics"]}},
-    },
-    "required": ["profile", "experiences", "skills", "certifications", "education", "projects", "accomplishments"],
-}
 
 class AICVIngestionError(RuntimeError):
     pass
 
 
 def ingest_cv_with_ai(document: Document, profile: CandidateProfile, db: Session) -> dict[str, Any]:
-    if (document.document_category or "").lower() != "cv": raise AICVIngestionError("AI profile building is only supported for CV documents")
+    if (document.document_category or "").lower() != "cv":
+        raise AICVIngestionError("AI profile building is only supported for CV documents")
+
     text = (document.source_metadata or {}).get("extracted_text", "")
-    if not isinstance(text, str) or not text.strip(): raise AICVIngestionError("No extracted document text is available")
-    task = """Extract a complete professional profile from the supplied CV.
-Rules:
-- The CV is the source of truth. Never invent or infer facts.
-- Keep every genuine employment role separate, including multiple roles at one employer.
-- Preserve employer, optional client, title and dates.
-- Do not turn skills, technologies, projects, certifications, education or generic phrases into jobs.
-- Extract skills from explicit Skills, Technical Skills, Core Competencies and technology content and classify them as Technical/IT, Leadership, Architecture, Security, Networking, Cloud, Soft Skill or Other.
-- Extract certifications and education only when stated.
-- Extract named projects only when explicitly presented as projects, programmes, implementations or major engagements; do not invent names.
-- Extract accomplishments only when concrete achievement, recognition, publication, award, measurable outcome or explicit accomplishment is stated.
-- Use null or an empty array when a value is not present.
-- Do not generate personas, recommendations or evidence graphs."""
-    request = IntelligenceRequest(task=task, context={"document": {"id": str(document.id), "filename": document.original_filename, "category": document.document_category, "text": text[:100000]}}, output_schema=SCHEMA, tools=[], temperature=0.0)
+    if not isinstance(text, str) or not text.strip():
+        raise AICVIngestionError("No extracted document text is available")
+
+    request = IntelligenceRequest(
+        task=CV_AI_INSTRUCTION,
+        task_type="cv_extraction",
+        context={"document": {"id": str(document.id), "filename": document.original_filename, "category": document.document_category, "text": text[:100000]}},
+        output_schema=CV_AI_OUTPUT_SCHEMA,
+        tools=[],
+        temperature=0.0,
+    )
+
     result = _run(request)
     if result.status != "completed":
         detail = result.result if isinstance(result.result, dict) else {"error": str(result.result)}
         raise AICVIngestionError(f"AI CV extraction failed: {detail}")
-    payload = _parse(result.result); counts = _persist(document, profile, payload, db)
-    metadata = dict(document.source_metadata or {}); metadata["ai_profile_extraction"] = {"status": "completed", "engine_version": result.engine_version, "provider": result.provider, "model": result.model, "trace_id": str(result.trace_id) if result.trace_id else None, "counts": counts}; document.source_metadata = metadata
-    profile.reconciliation_status = "complete" if counts["needs_review"] == 0 else "conflicting"; db.commit()
-    return {"status": profile.reconciliation_status, "document_id": str(document.id), "model": result.model, "provider": result.provider, "trace_id": str(result.trace_id) if result.trace_id else None, "counts": counts}
+
+    payload = _parse(result.result)
+    payload = _normalize_payload(payload)
+    counts = _persist(document, profile, payload, db)
+
+    extraction = ExtractionResult(
+        candidate_id=profile.id,
+        document_id=document.id,
+        extraction_type="cv",
+        extraction_version="3.0-ai-generic",
+        extracted_data=payload,
+        confidence_scores={"overall": 0.85},
+        status="complete",
+        is_reconciled=True,
+        reconciled_at=datetime.utcnow(),
+    )
+    db.add(extraction)
+    db.flush()
+
+    metadata = dict(document.source_metadata or {})
+    metadata["ai_profile_extraction"] = {
+        "status": "completed",
+        "contract_version": "3.0-generic-cv",
+        "engine_version": result.engine_version,
+        "provider": result.provider,
+        "model": result.model,
+        "trace_id": str(result.trace_id) if result.trace_id else None,
+        "counts": counts,
+        "extraction_result_id": str(extraction.id),
+    }
+    document.source_metadata = metadata
+    document.extraction_id = extraction.id
+    document.extraction_status = "complete"
+    document.processing_status = {**(document.processing_status or {}), "stage": "ai_reconciled"}
+    document.processing_stage = "complete"
+    document.status = "processed"
+    profile.reconciliation_status = "complete" if counts["needs_review"] == 0 else "conflicting"
+    db.commit()
+
+    return {
+        "status": profile.reconciliation_status,
+        "document_id": str(document.id),
+        "extraction_result_id": str(extraction.id),
+        "model": result.model,
+        "provider": result.provider,
+        "trace_id": str(result.trace_id) if result.trace_id else None,
+        "counts": counts,
+    }
 
 
 def _persist(document: Document, profile: CandidateProfile, payload: dict[str, Any], db: Session) -> dict[str, int]:
     profile_data = payload.get("profile") or {}
-    for field in ("full_name", "location", "title", "summary", "primary_email", "primary_phone", "linkedin_url", "years_experience", "seniority"):
-        value = profile_data.get(field)
-        if value not in (None, "", []) and getattr(profile, field, None) in (None, ""): setattr(profile, field, value)
-    profile.industries = _merge(profile.industries or [], profile_data.get("industries") or [])
-    raw_experiences = [_sanitize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]; applied, review, protected, mutation_count = _apply_experiences(document, raw_experiences, db)
-    for item in payload.get("skills", []):
-        if isinstance(item, dict): _skill(document, profile, item.get("name"), item.get("category"), item.get("proficiency"), db)
-    for item in payload.get("certifications", []):
-        if isinstance(item, dict): _cert(document, profile, item, db)
-    for item in payload.get("education", []):
-        if isinstance(item, dict): _edu(document, profile, item, db)
-    projects = _merge_objects(profile.projects or [], payload.get("projects") or [], "name", str(document.id)); accomplishments = _merge_objects(profile.accomplishments or [], payload.get("accomplishments") or [], "title", str(document.id)); profile.projects = projects; profile.accomplishments = accomplishments
+    mappings = {
+        "full_name": profile_data.get("full_name"),
+        "location": profile_data.get("location"),
+        "title": profile_data.get("title"),
+        "summary": profile_data.get("summary"),
+        "primary_email": profile_data.get("email"),
+        "primary_phone": profile_data.get("phone"),
+        "linkedin_url": profile_data.get("linkedin"),
+    }
+    for field, value in mappings.items():
+        if value not in (None, "") and getattr(profile, field, None) in (None, ""):
+            setattr(profile, field, value)
+
+    applied, needs_review = _apply_employment(document, profile, payload.get("employment") or [], db)
+
+    skills = 0
+    for value in payload.get("skills") or []:
+        if _skill(document, profile, value, db):
+            skills += 1
+
+    certifications = 0
+    for item in payload.get("certifications") or []:
+        if _cert(document, profile, item, db):
+            certifications += 1
+
+    education = 0
+    for item in payload.get("education") or []:
+        if _edu(document, profile, item, db):
+            education += 1
+
+    projects = _merge_objects(profile.projects or [], payload.get("projects") or [], "name", str(document.id))
+    accomplishments = _merge_objects(profile.accomplishments or [], payload.get("accomplishments") or [], "title", str(document.id))
+    profile.projects = projects
+    profile.accomplishments = accomplishments
+
     for item in projects:
-        if item.get("source_document_id") == str(document.id): _evidence(profile.id, document, "project", item.get("id"), 0.85, item.get("description"), db)
+        if item.get("source_document_id") == str(document.id):
+            _evidence(profile.id, document, "project", item.get("id"), 0.85, item.get("description"), db)
     for item in accomplishments:
-        if item.get("source_document_id") == str(document.id): _evidence(profile.id, document, "accomplishment", item.get("id"), 0.85, item.get("description"), db)
-    return {"experiences": len(applied), "needs_review": len(review), "protected": len(protected), "mutation_count": mutation_count, "skills": len(payload.get("skills", [])), "certifications": len(payload.get("certifications", [])), "education": len(payload.get("education", [])), "projects": len(projects), "accomplishments": len(accomplishments)}
+        if item.get("source_document_id") == str(document.id):
+            _evidence(profile.id, document, "accomplishment", item.get("id"), 0.85, item.get("description"), db)
+
+    return {
+        "experiences": applied,
+        "needs_review": needs_review,
+        "skills": skills,
+        "certifications": certifications,
+        "education": education,
+        "projects": len(projects),
+        "accomplishments": len(accomplishments),
+    }
 
 
-def _skill(doc: Document, profile: CandidateProfile, skill_name: Any, category: Any, proficiency: Any, db: Session) -> None:
-    name = _clean(skill_name)
-    if not name: return
+def _apply_employment(document: Document, profile: CandidateProfile, incoming: list[Any], db: Session) -> tuple[int, int]:
+    applied = 0
+    needs_review = 0
+    for item in incoming:
+        if not isinstance(item, dict):
+            continue
+        employer = _clean(item.get("employer"))
+        title = _clean(item.get("title"))
+        if not employer or not title:
+            needs_review += 1
+            continue
+
+        start_date = _date(item.get("start_date"))
+        end_date = _date(item.get("end_date"))
+        existing = (
+            db.query(ProfessionalExperience)
+            .filter(
+                ProfessionalExperience.candidate_id == profile.id,
+                ProfessionalExperience.company.ilike(employer),
+                ProfessionalExperience.title.ilike(title),
+            )
+            .all()
+        )
+        row = next(
+            (
+                candidate
+                for candidate in existing
+                if _same_date(candidate.start_date, start_date) and _same_date(candidate.end_date, end_date)
+            ),
+            None,
+        )
+        if not row:
+            row = ProfessionalExperience(
+                candidate_id=profile.id,
+                company=employer,
+                client=_clean(item.get("client")),
+                title=title,
+                location=_clean(item.get("location")),
+                start_date=start_date,
+                end_date=end_date,
+                is_current=end_date is None,
+                responsibilities=item.get("responsibilities") or [],
+                achievements=item.get("achievements") or [],
+                technologies=item.get("technologies") or [],
+                source_type="cv_ai",
+                source_id=document.id,
+                is_reconciled=True,
+                reconciliation_status="reconciled",
+            )
+            db.add(row)
+            db.flush()
+        else:
+            if not row.client and item.get("client"):
+                row.client = _clean(item.get("client"))
+            if not row.location and item.get("location"):
+                row.location = _clean(item.get("location"))
+            if not row.responsibilities and item.get("responsibilities"):
+                row.responsibilities = item.get("responsibilities")
+            if not row.achievements and item.get("achievements"):
+                row.achievements = item.get("achievements")
+            if not row.technologies and item.get("technologies"):
+                row.technologies = item.get("technologies")
+
+        _evidence(profile.id, document, "employment", row.id, 0.85, item.get("description"), db)
+        applied += 1
+    return applied, needs_review
+
+
+def _skill(doc: Document, profile: CandidateProfile, value: Any, db: Session) -> bool:
+    name = _clean(value)
+    if not name:
+        return False
     row = db.query(CandidateSkill).filter(CandidateSkill.candidate_id == profile.id, CandidateSkill.name.ilike(name)).first()
-    if not row: row = CandidateSkill(candidate_id=profile.id, name=name, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.category = row.category or _clean(category) or "Technical/IT"; row.proficiency = row.proficiency or _clean(proficiency); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "skill", row.id, 0.85, None, db)
+    if not row:
+        row = CandidateSkill(candidate_id=profile.id, name=name, source_type="cv_ai", source_id=doc.id, confidence=0.85)
+        db.add(row)
+        db.flush()
+    else:
+        row.confidence = max(float(row.confidence or 0), 0.85)
+    _evidence(profile.id, doc, "skill", row.id, 0.85, name, db)
+    return True
 
 
-def _cert(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> None:
-    name = _clean(item.get("name")); issuer = _clean(item.get("issuer")) or "Unknown"
-    if not name: return
+def _cert(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> bool:
+    name = _clean(item.get("name"))
+    if not name:
+        return False
+    issuer = _clean(item.get("issuer"))
     row = db.query(CandidateCertification).filter(CandidateCertification.candidate_id == profile.id, CandidateCertification.name.ilike(name)).first()
-    if not row: row = CandidateCertification(candidate_id=profile.id, name=name, issuer=issuer, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.issuer = row.issuer if row.issuer != "Unknown" else issuer; row.issue_date = row.issue_date or _date(item.get("issue_date")); row.expiry_date = row.expiry_date or _date(item.get("expiry_date")); row.credential_reference = row.credential_reference or _clean(item.get("credential_reference")); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "certification", row.id, 0.85, None, db)
+    if not row:
+        row = CandidateCertification(candidate_id=profile.id, name=name, issuer=issuer or "Unknown", source_type="cv_ai", source_id=doc.id, confidence=0.85)
+        db.add(row)
+        db.flush()
+    else:
+        if row.issuer == "Unknown" and issuer:
+            row.issuer = issuer
+        row.confidence = max(float(row.confidence or 0), 0.85)
+    row.issue_date = row.issue_date or _date(item.get("issue_date"))
+    row.expiry_date = row.expiry_date or _date(item.get("expiry_date"))
+    row.credential_reference = row.credential_reference or _clean(item.get("credential_reference"))
+    _evidence(profile.id, doc, "certification", row.id, 0.85, name, db)
+    return True
 
 
-def _edu(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> None:
-    institution = _clean(item.get("institution")); degree = _clean(item.get("degree"))
-    if not institution or not degree: return
+def _edu(doc: Document, profile: CandidateProfile, item: dict[str, Any], db: Session) -> bool:
+    institution = _clean(item.get("institution"))
+    degree = _clean(item.get("degree"))
+    if not institution or not degree:
+        return False
     row = db.query(CandidateEducation).filter(CandidateEducation.candidate_id == profile.id, CandidateEducation.institution.ilike(institution), CandidateEducation.degree.ilike(degree)).first()
-    if not row: row = CandidateEducation(candidate_id=profile.id, institution=institution, degree=degree, source_type="cv_ai", source_id=doc.id); db.add(row)
-    row.field_of_study = row.field_of_study or _clean(item.get("field_of_study")); row.start_date = row.start_date or _date(item.get("start_date")); row.end_date = row.end_date or _date(item.get("end_date")); row.grade = row.grade or _clean(item.get("grade")); row.confidence = max(float(row.confidence or 0), 0.85); db.flush(); _evidence(profile.id, doc, "education", row.id, 0.85, None, db)
+    if not row:
+        row = CandidateEducation(candidate_id=profile.id, institution=institution, degree=degree, source_type="cv_ai", source_id=doc.id, confidence=0.85)
+        db.add(row)
+        db.flush()
+    row.field_of_study = row.field_of_study or _clean(item.get("field_of_study"))
+    row.start_date = row.start_date or _date(item.get("start_date"))
+    row.end_date = row.end_date or _date(item.get("end_date"))
+    row.grade = row.grade or _clean(item.get("grade"))
+    row.confidence = max(float(row.confidence or 0), 0.85)
+    _evidence(profile.id, doc, "education", row.id, 0.85, f"{degree} — {institution}", db)
+    return True
 
 
 def _merge_objects(existing: list[Any], incoming: list[Any], key_field: str, source_document_id: str) -> list[dict[str, Any]]:
-    result = [dict(x) for x in existing if isinstance(x, dict)]; seen = {_norm(x.get(key_field)) for x in result if x.get(key_field)}
+    result = [dict(x) for x in existing if isinstance(x, dict)]
+    seen = {_norm(x.get(key_field)) for x in result if x.get(key_field)}
     for item in incoming:
-        if not isinstance(item, dict): continue
+        if not isinstance(item, dict):
+            continue
         key = _norm(item.get(key_field))
-        if not key or key in seen: continue
-        obj = dict(item); obj["id"] = str(uuid4()); obj["source_document_id"] = source_document_id; result.append(obj); seen.add(key)
+        if not key or key in seen:
+            continue
+        obj = dict(item)
+        obj["id"] = str(uuid4())
+        obj["source_document_id"] = source_document_id
+        result.append(obj)
+        seen.add(key)
     return result
 
 
 def _evidence(candidate_id: Any, doc: Document, kind: str, fact_id: Any, confidence: float, excerpt: Any, db: Session) -> None:
-    if not fact_id: return
-    try: fact_uuid = UUID(str(fact_id))
-    except (ValueError, TypeError): return
+    if not fact_id:
+        return
+    try:
+        fact_uuid = UUID(str(fact_id))
+    except (ValueError, TypeError):
+        return
     row = db.query(CareerFactEvidence).filter(CareerFactEvidence.candidate_id == candidate_id, CareerFactEvidence.document_id == doc.id, CareerFactEvidence.fact_type == kind, CareerFactEvidence.fact_id == fact_uuid).first()
-    if row: row.confidence = max(row.confidence, confidence); row.excerpt = _clean(excerpt) or row.excerpt; return
+    if row:
+        row.confidence = max(row.confidence, confidence)
+        row.excerpt = _clean(excerpt) or row.excerpt
+        return
     db.add(CareerFactEvidence(candidate_id=candidate_id, document_id=doc.id, fact_type=kind, fact_id=fact_uuid, relationship="supports", confidence=confidence, excerpt=_clean(excerpt)))
 
 
-def _merge(existing: list[str], incoming: list[str]) -> list[str]:
-    result = list(existing); seen = {_norm(x) for x in result}
-    for value in incoming:
-        if isinstance(value, str) and value.strip() and _norm(value) not in seen: result.append(value.strip()); seen.add(_norm(value))
+def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    result = {
+        "profile": payload.get("profile") if isinstance(payload.get("profile"), dict) else {},
+        "employment": payload.get("employment") if isinstance(payload.get("employment"), list) else [],
+        "education": payload.get("education") if isinstance(payload.get("education"), list) else [],
+        "certifications": payload.get("certifications") if isinstance(payload.get("certifications"), list) else [],
+        "skills": payload.get("skills") if isinstance(payload.get("skills"), list) else [],
+        "projects": payload.get("projects") if isinstance(payload.get("projects"), list) else [],
+        "accomplishments": payload.get("accomplishments") if isinstance(payload.get("accomplishments"), list) else [],
+    }
+    result["skills"] = [x.strip() for x in result["skills"] if isinstance(x, str) and x.strip()]
     return result
 
 
-def _norm(value: Any) -> str: return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
-def _clean(value: Any) -> str | None: return str(value).strip() if value not in (None, "") else None
+def _norm(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def _clean(value: Any) -> str | None:
+    return str(value).strip() if value not in (None, "") else None
+
+
+def _same_date(left: datetime | None, right: datetime | None) -> bool:
+    if left is None or right is None:
+        return left is right
+    return left.date() == right.date()
 
 
 def _date(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str): return None
+    if not value or not isinstance(value, str):
+        return None
+    text = value.strip()
     for fmt in ("%Y-%m-%d", "%Y-%m", "%B %Y", "%b %Y", "%Y"):
-        try: return datetime.strptime(value.strip(), fmt)
-        except ValueError: continue
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
     return None
 
 
 def _parse(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict): return value
-    if not isinstance(value, str): raise AICVIngestionError("AI returned an invalid CV extraction payload")
-    text = re.sub(r"^```(?:json)?\s*", "", value.strip(), flags=re.IGNORECASE); text = re.sub(r"\s*```$", "", text)
-    try: parsed = json.loads(text)
-    except json.JSONDecodeError as exc: raise AICVIngestionError(f"AI returned invalid JSON: {exc}") from exc
-    if not isinstance(parsed, dict): raise AICVIngestionError("AI CV extraction result must be a JSON object")
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        raise AICVIngestionError("AI returned an invalid CV extraction payload")
+    text = re.sub(r"^```(?:json)?\s*", "", value.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise AICVIngestionError(f"AI returned invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise AICVIngestionError("AI CV extraction result must be a JSON object")
     return parsed
 
 
 def _run(request: IntelligenceRequest):
-    try: return asyncio.run(engine.execute(request))
+    try:
+        return asyncio.run(engine.execute(request))
     except RuntimeError as exc:
-        if "asyncio.run() cannot be called" not in str(exc): raise
+        if "asyncio.run() cannot be called" not in str(exc):
+            raise
         loop = asyncio.new_event_loop()
-        try: return loop.run_until_complete(engine.execute(request))
-        finally: loop.close()
+        try:
+            return loop.run_until_complete(engine.execute(request))
+        finally:
+            loop.close()

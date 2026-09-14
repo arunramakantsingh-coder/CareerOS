@@ -60,7 +60,25 @@ def test_openrouter_upstream_error_identifies_google_ai_studio():
             }
         },
     )
-    assert OpenAICompatibleProvider._openrouter_upstream_slug(response) == "google-ai-studio"
+    assert OpenAICompatibleProvider._openrouter_failed_provider_slugs(response) == ["google-ai-studio"]
+
+
+def test_openrouter_upstream_error_collects_previous_failed_providers():
+    import httpx
+
+    response = httpx.Response(
+        429,
+        json={
+            "error": {
+                "message": "Provider returned error",
+                "code": 429,
+                "metadata": {
+                    "raw": '{"provider_name":"Darkbloom","previous_errors":[{"provider_name":"Google AI Studio","code":429}]}'
+                },
+            }
+        },
+    )
+    assert OpenAICompatibleProvider._openrouter_failed_provider_slugs(response) == ["darkbloom", "google-ai-studio"]
 
 
 def test_openrouter_provider_preferences_enable_failover():

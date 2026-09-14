@@ -61,8 +61,14 @@ def validate_provider_configuration(provider: str, model: str | None, base_url: 
             raise ProviderConfigurationError("OpenRouter requires the OpenRouter API endpoint; an Ollama/local endpoint is not valid.")
         if not selected_model:
             raise ProviderConfigurationError("OpenRouter requires an explicit model id; configure OPENROUTER_MODEL or select a provider/model in CareerOS.")
-        if selected_model.lower() in {"openrouter/free", "openrouter/free:auto", "free"}:
+        lowered = selected_model.lower()
+        if lowered in {"openrouter/free", "openrouter/free:auto", "free"}:
             raise ProviderConfigurationError("OpenRouter free-model routing is disabled for CareerOS intelligence. Configure one explicit OpenRouter model id.")
+        # The previous CareerOS catalog used this incomplete slug. OpenRouter's
+        # current concrete free model id includes the '-it' suffix. Normalize the
+        # legacy alias instead of sending a guaranteed-invalid model to OpenRouter.
+        if lowered == "google/gemma-4-26b-a4b:free":
+            selected_model = "google/gemma-4-26b-a4b-it:free"
         if selected_model.lower().endswith(":free") and "/" not in selected_model:
             raise ProviderConfigurationError("OpenRouter requires a provider/model id.")
         if "/" not in selected_model:

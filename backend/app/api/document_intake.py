@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.intelligence.document_enrichment import DocumentEnrichmentError, enrich_document
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
 from app.models.user import User
@@ -59,7 +58,7 @@ def persist_document(profile, filename, content, mime_type, db, batch_id, relati
             derived=image_to_pdf(content); derived_pdf_path=storage_dir/f"{Path(filename_for_vault).stem} - derived.pdf"; derived_pdf_path.write_bytes(derived)
         except Exception as exc: extraction_meta={**extraction_meta,"derived_pdf_error":str(exc)}
     source_metadata={"relative_path":relative_path,"extraction":extraction_meta,"duplicate_of":str(duplicate.id) if duplicate else None,"original_authoritative":True,"derived_text_stored":True,"derived_pdf_path":str(derived_pdf_path) if derived_pdf_path else None,"ingestion_batch":str(batch_id),"extracted_text":text[:100000],"classification":classification}
-    document=Document(candidate_id=profile.id,filename=filename_for_vault,original_filename=original,file_size=len(content),file_type=suffix.lstrip("."),mime_type=mime_type,storage_path=str(storage_path),storage_url=None,document_category=classification["category"],document_subcategory=classification["subcategory"],document_type=classification["subcategory"],status="duplicate" if duplicate else "processed",processing_status={"stage":"profile_enrichment_pending","classification":classification,"extraction":extraction_meta},extraction_status="pending" if text or extraction_meta.get("ocr_required") else "failed",source="upload",source_metadata=source_metadata,content_hash=content_hash,issuer=issuer,batch_id=batch_id,is_zip_content=is_zip_content,parent_zip_id=parent_zip_id,classification_confidence=classification["confidence"],detected_type=f"{classification['category']}:{classification['subcategory']}",classification_reason=classification["reason"],verification_status="reported",processing_stage="classifying")
+    document=Document(candidate_id=profile.id,filename=filename_for_vault,original_filename=original,file_size=len(content),file_type=suffix.lstrip("."),mime_type=mime_type,storage_path=str(storage_path),storage_url=None,document_category=classification["category"],document_subcategory=classification["subcategory"],document_type=classification["subcategory"],status="duplicate" if duplicate else "processed",processing_status={"stage":"vault_ingested","classification":classification,"extraction":extraction_meta},extraction_status="pending" if text or extraction_meta.get("ocr_required") else "failed",source="upload",source_metadata=source_metadata,content_hash=content_hash,issuer=issuer,batch_id=batch_id,is_zip_content=is_zip_content,parent_zip_id=parent_zip_id,classification_confidence=classification["confidence"],detected_type=f"{classification['category']}:{classification['subcategory']}",classification_reason=classification["reason"],verification_status="reported",processing_stage="classifying")
     db.add(document); db.flush()
     metadata_path=storage_dir/f"{Path(filename_for_vault).stem}.metadata.md"
     metadata_path.write_text(build_markdown_record(document_id=str(document.id),owner=profile.full_name,original_filename=original,stored_filename=filename_for_vault,content_hash=content_hash,classification=classification,extraction_meta=extraction_meta,extracted_text=text,relative_path=relative_path,derived_pdf_path=str(derived_pdf_path) if derived_pdf_path else None),encoding="utf-8")
@@ -71,18 +70,24 @@ def persist_document(profile, filename, content, mime_type, db, batch_id, relati
         try:
             extraction_service.extract_from_document(document,db)
             db.commit()
-            # Every text-bearing professional document gets the same AI understanding pass.
-            # This classifies the document semantically, generates a human-friendly name,
-            # extracts useful metadata and links only to existing canonical facts.
-            try:
-                enrich_document(document, profile, db)
-                db.commit()
-            except DocumentEnrichmentError as exc:
-                document.processing_stage="ai_failed"
-                document.processing_status={**(document.processing_status or {}),"ai_enrichment":{"status":"failed","error":str(exc)[:500]}}
-                db.commit()
+            metadata = dict(document.source_metadata or {})
+            metadata["deterministic_extraction"] = {"status": "completed"}
+            document.source_metadata = metadata
+            document.processing_status = {**(document.processing_status or {}), "stage": "vault_ready"}
+            document.processing_stage = "vault_ready"
+            document.status = "processed"
+            db.commit()
         except Exception as exc:
-            document.status="failed"; document.extraction_status="failed"; document.processing_stage="failed"; document.processing_status={**(document.processing_status or {}),"stage":"extraction_failed","error":str(exc)}; db.commit()
+            # Deterministic extraction is supporting infrastructure only. Raw source text
+            # remains authoritative input for the explicit AI profile-building workflow.
+            metadata = dict(document.source_metadata or {})
+            metadata["deterministic_extraction"] = {"status": "failed", "error": str(exc)[:500]}
+            document.source_metadata = metadata
+            document.status = "processed"
+            document.extraction_status = "failed"
+            document.processing_stage = "vault_ready"
+            document.processing_status = {**(document.processing_status or {}), "stage": "vault_ready", "deterministic_extraction": "failed", "deterministic_error": str(exc)[:500]}
+            db.commit()
     return document
 
 
@@ -103,7 +108,6 @@ async def batch_upload(files:list[UploadFile]=File(...),relative_paths:Optional[
                 zip_doc.status="failed"; zip_doc.processing_stage="failed"; zip_doc.processing_status={**(zip_doc.processing_status or {}),"stage":"zip_failed","error":str(exc)}; db.commit(); raise HTTPException(400,f"ZIP processing failed for {original}: {exc}")
             results.append({"id":str(zip_doc.id),"filename":zip_doc.original_filename,"status":zip_doc.status,"type":"zip","children":extracted}); continue
         document=persist_document(profile,original,content,upload.content_type,db,batch_id,relative_path=rel)
-        # User-selected category is an explicit hint; AI detected type remains authoritative for presentation.
         if document_category: document.document_category=document_category
         if document_subcategory: document.document_subcategory=document_subcategory
         db.commit(); results.append({"id":str(document.id),"filename":document.original_filename,"stored_filename":document.filename,"display_name":document.user_label,"category":document.document_category,"detected_type":document.detected_type,"confidence":document.classification_confidence,"status":document.status,"extraction_status":document.extraction_status,"processing_stage":document.processing_stage,"metadata_markdown":(document.source_metadata or {}).get("metadata_markdown_path"),"master_index":(document.source_metadata or {}).get("master_index_path"),"derived_pdf":(document.source_metadata or {}).get("derived_pdf_path")})

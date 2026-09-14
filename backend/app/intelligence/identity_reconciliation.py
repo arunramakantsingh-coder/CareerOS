@@ -158,6 +158,7 @@ def _month_number(value: str) -> int:
 
 
 def _merge_ai_with_source_anchors(model_experiences: list[dict[str, Any]], anchors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Use AI extraction as the primary employment representation, with source anchors as safety constraints/fallbacks."""
     result: list[dict[str, Any]] = []
     used: set[int] = set()
     for anchor in anchors:
@@ -166,14 +167,22 @@ def _merge_ai_with_source_anchors(model_experiences: list[dict[str, Any]], ancho
             if index in used: continue
             score = _identity_score(anchor, candidate)
             if score > best_score: best_score, best_index = score, index
-        merged = dict(anchor)
         if best_index is not None and best_score >= 0.45:
-            used.add(best_index); candidate = model_experiences[best_index]
-            for field in ("responsibilities", "achievements", "technologies", "industries"):
-                if candidate.get(field): merged[field] = candidate[field]
-            merged["confidence"] = max(float(anchor.get("confidence", 0.97)), float(candidate.get("confidence", 0.0)))
-            if candidate.get("evidence_excerpt"): merged["evidence_excerpt"] = candidate["evidence_excerpt"]
-        result.append(merged)
+            used.add(best_index)
+            candidate = dict(model_experiences[best_index])
+            # AI supplies the record. The anchor only fills missing structural fields;
+            # it is not the primary parser for the employment representation.
+            for field in ("organization", "client", "title", "start_date", "end_date", "is_current"):
+                if candidate.get(field) in (None, ""):
+                    candidate[field] = anchor.get(field)
+            candidate["confidence"] = max(float(anchor.get("confidence", 0.97)), float(candidate.get("confidence", 0.0)))
+            if not candidate.get("evidence_excerpt"):
+                candidate["evidence_excerpt"] = anchor.get("evidence_excerpt")
+            result.append(candidate)
+        else:
+            # A source-anchored role with no sufficiently matching AI record is retained
+            # as a safety fallback so an AI omission can never erase a real employment role.
+            result.append(dict(anchor))
     return result
 
 

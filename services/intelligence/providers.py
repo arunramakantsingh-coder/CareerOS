@@ -43,6 +43,9 @@ class OllamaProvider:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(f"{self.base_url}/api/generate", json=payload); response.raise_for_status(); body = response.json()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:1200] if exc.response is not None else str(exc)
+            raise ProviderError(f"Ollama request failed: HTTP {exc.response.status_code if exc.response is not None else 'error'}: {detail}") from exc
         except httpx.HTTPError as exc: raise ProviderError(f"Ollama request failed: {exc}") from exc
         return ProviderResult(self.name, self.model, body.get("response", ""), body.get("done", False), body.get("total_duration"), body.get("prompt_eval_count"), body.get("eval_count"))
 
@@ -52,6 +55,8 @@ class OllamaProvider:
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.get(f"{self.base_url}/api/tags"); response.raise_for_status()
             return {"provider": self.name, "configured": True, "model": self.model, "reachable": True}
+        except httpx.HTTPStatusError as exc:
+            return {"provider": self.name, "configured": True, "model": self.model, "reachable": False, "error": f"HTTP {exc.response.status_code}: {exc.response.text[:240]}"}
         except httpx.HTTPError as exc: return {"provider": self.name, "configured": True, "model": self.model, "reachable": False, "error": str(exc)[:240]}
 
 
@@ -68,16 +73,24 @@ class OpenAICompatibleProvider:
         payload: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": temperature}
         if response_schema:
             if self.name == "openrouter":
-                # OpenRouter's current free Gemma endpoints support JSON output mode,
-                # but do not enforce a JSON Schema. The application still validates
-                # the returned JSON before any profile mutation.
+                # The selected free Gemma endpoint supports JSON output mode but does
+                # not enforce a JSON Schema. CareerOS validates the returned JSON
+                # before any profile mutation.
                 payload["response_format"] = {"type": "json_object"}
             else:
                 payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "careeros_result", "strict": True, "schema": response_schema}}
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json", "X-Title": "CareerOS"}
+        if self.name == "openrouter":
+            headers["HTTP-Referer"] = "https://careeros.app"
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers); response.raise_for_status(); body = response.json()
+                response = await client.post(f"{self.base_url}/chat/completions", json=payload, headers=headers)
+                response.raise_for_status()
+                body = response.json()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else "error"
+            detail = exc.response.text[:1600] if exc.response is not None else str(exc)
+            raise ProviderError(f"{self.name} request failed: HTTP {status}: {detail}") from exc
         except httpx.HTTPError as exc: raise ProviderError(f"{self.name} request failed: {exc}") from exc
         try: content = body["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc: raise ProviderError(f"{self.name} returned an unexpected response") from exc
@@ -100,7 +113,8 @@ class AnthropicProvider:
         headers = {"x-api-key": self.api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(f"{self.base_url}/v1/messages", json=payload, headers=headers); response.raise_for_status(); body = response.json()
+                response = await client.post(f"{self.base_url}/v1/messages", json=payload); response.raise_for_status(); body = response.json()
+        except httpx.HTTPStatusError as exc: raise ProviderError(f"Anthropic request failed: HTTP {exc.response.status_code}: {exc.response.text[:1200]}") from exc
         except httpx.HTTPError as exc: raise ProviderError(f"Anthropic request failed: {exc}") from exc
         try: text = body["content"][0]["text"]
         except (KeyError, IndexError, TypeError) as exc: raise ProviderError("Anthropic returned an unexpected response") from exc
@@ -122,6 +136,7 @@ class GeminiProvider:
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(url, json=payload); response.raise_for_status(); body = response.json()
+        except httpx.HTTPStatusError as exc: raise ProviderError(f"Gemini request failed: HTTP {exc.response.status_code}: {exc.response.text[:1200]}") from exc
         except httpx.HTTPError as exc: raise ProviderError(f"Gemini request failed: {exc}") from exc
         try: text = body["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError) as exc: raise ProviderError("Gemini returned an unexpected response") from exc
@@ -138,7 +153,7 @@ def build_provider(config: dict[str, str], timeout: float) -> AIProvider:
     if provider_name == "ollama": return OllamaProvider(base_url or "http://host.docker.internal:11434", model or config.get("OLLAMA_MODEL", ""), timeout)
     if provider_name == "gemini": return GeminiProvider(api_key, model or "gemini-3.5-flash-lite", timeout)
     if provider_name == "anthropic": return AnthropicProvider(api_key, model or "claude-sonnet-5", base_url or "https://api.anthropic.com", timeout)
-    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b-it:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16-instruct"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro")}
+    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b-it:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16e-instruct"), "deepseek": ("https://api.deepseek.com/v1", "deepseek-v4-pro")}
     if provider_name in defaults:
         default_url, default_model = defaults[provider_name]
         return OpenAICompatibleProvider(provider_name, api_key, model or default_model, base_url or default_url, timeout)

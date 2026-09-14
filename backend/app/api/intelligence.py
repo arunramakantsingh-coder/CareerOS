@@ -76,15 +76,15 @@ def _ensure_catalog_rows(db: Session) -> None:
     for name, meta in PROVIDER_CATALOG.items():
         row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == name).first()
         if row:
-            # Existing development databases may still contain the old dynamic
-            # openrouter/free selector. Migrate that value to the pinned catalog model
-            # so fallback remains deterministic without requiring a DB reset/migration.
-            if name == "openrouter" and str(row.model or "").strip().lower() in {"openrouter/free", "openrouter/free:auto", "free", ""} and meta.get("model"):
-                row.model = meta["model"]
-                changed = True
-            if name == "openrouter" and not row.base_url and meta.get("base_url"):
-                row.base_url = meta["base_url"]
-                changed = True
+            if name == "openrouter":
+                stored_model = str(row.model or "").strip().lower()
+                legacy_models = {"openrouter/free", "openrouter/free:auto", "free", "", "google/gemma-4-26b-a4b:free"}
+                if stored_model in legacy_models and meta.get("model"):
+                    row.model = meta["model"]
+                    changed = True
+                if not row.base_url and meta.get("base_url"):
+                    row.base_url = meta["base_url"]
+                    changed = True
             continue
         env_key = env_keys.get(name, "")
         db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], encrypted_api_key=encrypt_secret(env_key) if env_key else None, api_key_last4=env_key[-4:] if env_key else None, configured=(name == "ollama" or bool(env_key)), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "health_gated_dynamic", "fallback_enabled": True, "daily_request_limit": None, "operator_primary": False}, metadata_json={"lifecycle_state": "configured" if name == "ollama" or bool(env_key) else "not_configured"}))
@@ -158,8 +158,10 @@ async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None =
             response.raise_for_status()
             return response.json()
     except httpx.HTTPStatusError as exc:
-        try: detail = exc.response.json().get("detail", exc.response.text)
-        except Exception: detail = exc.response.text
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:
+            detail = exc.response.text
         raise HTTPException(status_code=exc.response.status_code if exc.response is not None else 503, detail=detail) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"Intelligence Engine unavailable: {exc}") from exc
@@ -197,7 +199,7 @@ async def observability(db: Session = Depends(get_db), _: User = Depends(get_cur
 async def routing_preview(task_type: str = Query(default="profile_reconciliation", min_length=2, max_length=80), db: Session = Depends(get_db), _: User = Depends(require_developer)):
     _ensure_catalog_rows(db); rows = db.query(IntelligenceProviderConfig).all(); task_type = task_type.strip().lower(); requirements = TASK_REQUIREMENTS.get(task_type, TASK_REQUIREMENTS["general"]); policy = policy_from_rows(rows); ttl = health_ttl_seconds(policy); eligible=[]; excluded=[]
     for row in rows:
-        reason=None; capabilities=self._capabilities(row) if False else _capabilities(row)
+        reason=None; capabilities=_capabilities(row)
         if not row.configured: reason="not_configured"
         elif not row.active: reason=_lifecycle(row)
         elif _configuration_error(row): reason=f"invalid_configuration: {_configuration_error(row)}"
@@ -286,14 +288,23 @@ async def test_provider(request: ProviderSaveRequest, db: Session = Depends(get_
     supplied_key=request.api_key.strip() if request.api_key else None
     if name!="ollama" and not supplied_key and not row.encrypted_api_key: raise HTTPException(status_code=400, detail="Save credentials first or provide an API key for this test")
     try:
-        payload=_gateway_config(row,supplied_key)
-        if request.model or request.base_url: payload.update(validate_provider_configuration(name,request.model or row.model,request.base_url if request.base_url is not None else row.base_url))
+        validated=validate_provider_configuration(name,request.model or row.model,request.base_url if request.base_url is not None else row.base_url)
+        payload={"provider":name,"model":validated["model"],"base_url":validated["base_url"],"api_key":supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)}
+        # Persist only the canonical provider/model identity after validation. This
+        # fixes legacy OpenRouter model aliases without a migration or DB reset.
+        row.model=validated["model"]; row.base_url=validated["base_url"] or row.base_url
         result=await _call("/v1/generate",method="POST",payload={"prompt":"Reply with exactly: CAREEROS_AI_TEST_OK","temperature":0.0,**payload})
         row.last_tested_at=datetime.now(timezone.utc).isoformat(); row.last_test_status="passed"; row.last_error=None; db.commit(); return result
     except ProviderConfigurationError as exc:
-        row.last_tested_at=datetime.now(timezone.utc).isoformat(); row.last_test_status="failed"; row.last_error=str(exc); db.commit(); raise HTTPException(status_code=400, detail=str(exc)) from exc
+        db.rollback(); row=db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider==name).first()
+        if row:
+            row.last_tested_at=datetime.now(timezone.utc).isoformat(); row.last_test_status="failed"; row.last_error=str(exc); db.commit()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException as exc:
-        row.last_tested_at=datetime.now(timezone.utc).isoformat(); row.last_test_status="failed"; row.last_error=str(exc.detail)[:1000]; db.commit(); raise
+        db.rollback(); row=db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider==name).first()
+        if row:
+            row.last_tested_at=datetime.now(timezone.utc).isoformat(); row.last_test_status="failed"; row.last_error=str(exc.detail)[:1000]; db.commit()
+        raise
 
 
 @router.get("/capabilities")

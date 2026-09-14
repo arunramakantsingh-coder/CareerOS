@@ -13,9 +13,13 @@ from app.intelligence.provider_validation import ProviderConfigurationError, val
 def row(name: str, *, active: bool = True, configured: bool = True, capabilities=None, checked_minutes_ago: int = 1, priority: int = 100, reliability=(9, 10), p95=100.0, avg=50.0, operator_primary=False, model=None):
     successful, checks = reliability
     checked = (datetime.now(timezone.utc) - timedelta(minutes=checked_minutes_ago)).isoformat()
-    model = model or ("openrouter/free" if name == "openrouter" else "gemma3:4b")
-    base_url = "https://openrouter.ai/api/v1" if name == "openrouter" else "http://host.docker.internal:11434"
-    return SimpleNamespace(provider=name, label=name.title(), model=model, base_url=base_url, active=active, configured=configured, encrypted_api_key="encrypted" if name != "ollama" else None, priority=priority, capabilities=capabilities or ["structured_output", "reasoning"], routing_policy={"fallback_enabled": True, "daily_request_limit": None, "operator_primary": operator_primary}, metadata_json={"health": {"status": "healthy", "checked_at": checked, "successful_checks": successful, "checks": checks, "consecutive_failures": 0, "p95_latency_ms": p95, "avg_latency_ms": avg, "quota": {}}})
+    defaults = {
+        "openrouter": ("openrouter/free", "https://openrouter.ai/api/v1"),
+        "ollama": ("gemma3:4b", "http://host.docker.internal:11434"),
+        "groq": ("llama-4-scout-17b-16e-instruct", "https://api.groq.com/openai/v1"),
+    }
+    default_model, base_url = defaults.get(name, (model or "model", "https://example.invalid"))
+    return SimpleNamespace(provider=name, label=name.title(), model=model or default_model, base_url=base_url, active=active, configured=configured, encrypted_api_key="encrypted" if name != "ollama" else None, priority=priority, capabilities=capabilities or ["structured_output", "reasoning"], routing_policy={"fallback_enabled": True, "daily_request_limit": None, "operator_primary": operator_primary}, metadata_json={"health": {"status": "healthy", "checked_at": checked, "successful_checks": successful, "checks": checks, "consecutive_failures": 0, "p95_latency_ms": p95, "avg_latency_ms": avg, "quota": {}}})
 
 
 def test_deactivated_provider_never_selected(monkeypatch):
@@ -52,14 +56,14 @@ def test_unhealthy_provider_never_selected(monkeypatch):
 
 
 def test_incompatible_provider_excluded_without_stopping_routing(monkeypatch):
-    engine = RoutedIntelligenceEngine(); rows = [row("openrouter", capabilities=["structured_output"]), row("ollama")]
+    engine = RoutedIntelligenceEngine(); rows = [row("groq", capabilities=["structured_output"]), row("ollama")]
     class FakeDB:
         def query(self, _): return SimpleNamespace(all=lambda: rows)
         def close(self): pass
     monkeypatch.setattr("app.intelligence.engine_runtime.SessionLocal", lambda: FakeDB())
     ranked, excluded = engine._candidate_snapshot("profile_reconciliation", "trace")
     assert [x.provider for x in ranked] == ["ollama"]
-    assert any(x["provider"] == "openrouter" and "missing_capabilities" in x["reason"] for x in excluded)
+    assert any(x["provider"] == "groq" and "missing_capabilities" in x["reason"] for x in excluded)
 
 
 def test_multiple_active_providers_are_dynamically_ranked(monkeypatch):
@@ -99,10 +103,13 @@ def test_failed_primary_falls_back_to_next_eligible(monkeypatch):
                 if not self.ok: raise __import__("httpx").HTTPStatusError("bad gateway", request=None, response=SimpleNamespace(status_code=502, text="bad gateway", json=lambda: {"detail": "bad gateway"}))
             def json(self): return {"provider": self.provider, "model": "model", "response": "ok"}
         class Client:
-            def __init__(self, *args, **kwargs): self.calls = 0
+            calls = 0
+            def __init__(self, *args, **kwargs): pass
             async def __aenter__(self): return self
             async def __aexit__(self, *args): return False
-            async def post(self, *_args, **_kwargs): self.calls += 1; return Response(self.calls > 1, "ollama" if self.calls > 1 else "openrouter")
+            async def post(self, *_args, **_kwargs):
+                Client.calls += 1
+                return Response(Client.calls > 1, "ollama" if Client.calls > 1 else "openrouter")
         monkeypatch.setattr("app.intelligence.engine_runtime.httpx.AsyncClient", Client)
         result = await engine.generate_direct({"task_type": "profile_reconciliation", "prompt": "test"})
         assert result["provider"] == "ollama"; assert result["routing"]["fallback_used"] is True; assert result["routing"]["attempts"][0]["status"] == "failed"; assert result["routing"]["attempts"][1]["status"] == "success"

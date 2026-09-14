@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -17,8 +17,11 @@ from app.intelligence.credential_store import decrypt_secret, encrypt_secret
 from app.intelligence.engine import engine
 from app.intelligence.health_policy import health_is_fresh, health_ttl_seconds, policy_from_rows
 from app.intelligence.provider_catalog import PROVIDER_CATALOG
+from app.intelligence.provider_validation import ProviderConfigurationError, validate_provider_configuration
 from app.intelligence.registry import registry
 from app.intelligence.retrieval import retrieve_career_knowledge
+from app.intelligence.runtime_trace import get_trace, list_traces
+from app.intelligence.engine_runtime import TASK_REQUIREMENTS, routed_engine
 from app.models.intelligence_provider import IntelligenceProviderConfig
 from app.models.user import User
 
@@ -61,7 +64,7 @@ def _ensure_catalog_rows(db: Session) -> None:
         if row:
             continue
         env_key = env_keys.get(name, "")
-        db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], encrypted_api_key=encrypt_secret(env_key) if env_key else None, api_key_last4=env_key[-4:] if env_key else None, configured=(name == "ollama" or bool(env_key)), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "deterministic", "fallback_enabled": True, "daily_request_limit": None}))
+        db.add(IntelligenceProviderConfig(provider=name, label=meta["label"], category=meta["category"], model=meta["model"], base_url=meta["base_url"], encrypted_api_key=encrypt_secret(env_key) if env_key else None, api_key_last4=env_key[-4:] if env_key else None, configured=(name == "ollama" or bool(env_key)), active=False, priority=100, capabilities=meta["capabilities"], routing_policy={"mode": "health_gated_dynamic", "fallback_enabled": True, "daily_request_limit": None, "operator_primary": False}))
         changed = True
     if changed:
         db.flush()
@@ -70,7 +73,18 @@ def _ensure_catalog_rows(db: Session) -> None:
             preferred = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == "ollama").first()
         if preferred and not db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.active.is_(True)).first():
             preferred.active = True
+            preferred.routing_policy = {**(preferred.routing_policy or {}), "operator_primary": True}
         db.commit()
+
+
+def _configuration_error(row: IntelligenceProviderConfig) -> str | None:
+    try:
+        validate_provider_configuration(row.provider, row.model, row.base_url)
+    except ProviderConfigurationError as exc:
+        return str(exc)
+    if row.configured and row.provider != "ollama" and not row.encrypted_api_key:
+        return "API credential is not configured"
+    return None
 
 
 def _public_provider(row: IntelligenceProviderConfig) -> dict[str, Any]:
@@ -81,11 +95,34 @@ def _public_provider(row: IntelligenceProviderConfig) -> dict[str, Any]:
     control_state = "active" if row.active else "configured" if row.configured else "not_configured"
     if row.configured and not row.active:
         control_state = "deactivated"
-    return {"provider": row.provider, "label": row.label, "category": row.category, "model": row.model, "base_url": row.base_url, "configured": bool(row.configured), "active": bool(row.active), "control_state": control_state, "deactivated": bool(row.configured and not row.active), "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": policy, "api_key_present": bool(row.encrypted_api_key), "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error, "telemetry": telemetry, "health": health}
+    return {
+        "provider": row.provider,
+        "label": row.label,
+        "category": row.category,
+        "model": row.model,
+        "base_url": row.base_url,
+        "configured": bool(row.configured),
+        "active": bool(row.active),
+        "control_state": control_state,
+        "deactivated": bool(row.configured and not row.active),
+        "priority": row.priority,
+        "capabilities": row.capabilities or [],
+        "routing_policy": policy,
+        "api_key_present": bool(row.encrypted_api_key),
+        "api_key_last4": row.api_key_last4 if row.encrypted_api_key else None,
+        "last_tested_at": row.last_tested_at,
+        "last_test_status": row.last_test_status,
+        "last_error": row.last_error,
+        "configuration_valid": _configuration_error(row) is None,
+        "configuration_error": _configuration_error(row),
+        "telemetry": telemetry,
+        "health": health,
+    }
 
 
 def _gateway_config(row: IntelligenceProviderConfig, supplied_key: str | None = None) -> dict[str, Any]:
-    return {"provider": row.provider, "model": row.model, "base_url": row.base_url, "api_key": supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)}
+    config = validate_provider_configuration(row.provider, row.model, row.base_url)
+    return {"provider": row.provider, "model": config["model"], "base_url": config["base_url"], "api_key": supplied_key if supplied_key is not None else decrypt_secret(row.encrypted_api_key)}
 
 
 def _health_is_fresh(row: IntelligenceProviderConfig, db: Session) -> bool:
@@ -93,20 +130,21 @@ def _health_is_fresh(row: IntelligenceProviderConfig, db: Session) -> bool:
     return health_is_fresh(row, health_ttl_seconds(policy_from_rows(rows)))
 
 
-def _health_rank_key(row: IntelligenceProviderConfig) -> tuple[float, float, int, str]:
+def _health_rank_key(row: IntelligenceProviderConfig) -> tuple[float, float, float, float, int, int, str]:
     health = (row.metadata_json or {}).get("health") or {}
     checks = int(health.get("checks") or 0)
     successful = int(health.get("successful_checks") or 0)
     reliability = successful / checks if checks else 0.0
+    recent_failures = int(health.get("consecutive_failures") or 0)
     p95 = float(health.get("p95_latency_ms") or 999999.0)
-    # Health reliability is the primary runtime signal, latency the secondary
-    # signal, and manual priority is only the final deterministic tie-breaker.
-    return (-reliability, p95, int(row.priority), row.label)
+    avg = float(health.get("avg_latency_ms") or 999999.0)
+    operator_primary = bool((row.routing_policy or {}).get("operator_primary"))
+    return (-reliability, recent_failures, p95, avg, 0 if operator_primary else 1, int(row.priority), row.label)
 
 
 def _primary_active(rows: list[IntelligenceProviderConfig], db: Session) -> IntelligenceProviderConfig | None:
-    active = [row for row in rows if row.active and row.configured and _health_is_fresh(row, db)]
-    return sorted(active, key=_health_rank_key)[0] if active else next((row for row in rows if row.active), None)
+    eligible = [row for row in rows if row.active and row.configured and _configuration_error(row) is None and _health_is_fresh(row, db)]
+    return sorted(eligible, key=_health_rank_key)[0] if eligible else None
 
 
 async def _call(path: str, method: str = "GET", payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -151,11 +189,11 @@ async def observability(db: Session = Depends(get_db), _: User = Depends(get_cur
         total_tokens += int(telemetry.get("total_tokens") or 0)
         total_failures += int(telemetry.get("failed_requests") or 0)
         total_fallbacks += int(telemetry.get("fallback_requests") or 0)
-        providers_out.append({"provider": row.provider, "label": row.label, "configured": bool(row.configured), "active": bool(row.active), "control_state": "active" if row.active else "configured" if row.configured else "not_configured", "model": row.model, "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": row.routing_policy or {"mode": "deterministic", "fallback_enabled": True}, "telemetry": telemetry, "health": (row.metadata_json or {}).get("health") or {}, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error})
+        providers_out.append({"provider": row.provider, "label": row.label, "configured": bool(row.configured), "active": bool(row.active), "control_state": "active" if row.active else "deactivated" if row.configured else "not_configured", "model": row.model, "priority": row.priority, "capabilities": row.capabilities or [], "routing_policy": row.routing_policy or {"mode": "health_gated_dynamic", "fallback_enabled": True}, "telemetry": telemetry, "health": (row.metadata_json or {}).get("health") or {}, "last_tested_at": row.last_tested_at, "last_test_status": row.last_test_status, "last_error": row.last_error})
     primary = _primary_active(rows, db)
     policy = policy_from_rows(rows)
     routing = {
-        "strategy": "health-gated capability + reliability + latency + manual priority",
+        "strategy": "hard gates → task compatibility → reliability → recent failures → p95 latency → average latency → operator preference → manual priority",
         "health_ttl_seconds": health_ttl_seconds(policy),
         "active_provider": primary.provider if primary else None,
         "active_providers": [row.provider for row in sorted(active, key=_health_rank_key)],
@@ -164,19 +202,54 @@ async def observability(db: Session = Depends(get_db), _: User = Depends(get_cur
         "configured_provider_order": [row.provider for row in sorted(configured, key=lambda x: (x.priority, x.label))],
         "active_provider_order": [row.provider for row in sorted(active, key=_health_rank_key)],
         "healthy_provider_order": [row.provider for row in sorted(healthy, key=_health_rank_key)],
-        "tasks": {"cv_extraction": ["structured_output"], "profile_reconciliation": ["structured_output", "reasoning"], "document_classification": ["structured_output"], "persona_generation": ["reasoning"], "jd_analysis": ["reasoning", "long_context"], "matching": ["reasoning", "structured_output"], "research": ["long_context"], "interview_intelligence": ["reasoning"], "embedding": ["embedding"], "bulk_processing": ["fast", "structured_output"]},
+        "tasks": TASK_REQUIREMENTS,
     }
     return {"routing": routing, "usage": {"requests": total_requests, "total_tokens": total_tokens, "failed_requests": total_failures, "fallback_requests": total_fallbacks}, "providers": providers_out}
+
+
+@router.get("/routing/preview")
+async def routing_preview(task_type: str = Query(default="profile_reconciliation", min_length=2, max_length=80), db: Session = Depends(get_db), _: User = Depends(require_developer)):
+    _ensure_catalog_rows(db)
+    rows = db.query(IntelligenceProviderConfig).all()
+    requirements = TASK_REQUIREMENTS.get(task_type.strip().lower(), TASK_REQUIREMENTS["general"])
+    policy = policy_from_rows(rows)
+    ttl = health_ttl_seconds(policy)
+    eligible: list[IntelligenceProviderConfig] = []
+    excluded: list[dict[str, Any]] = []
+    for row in rows:
+        reason = None
+        if not row.configured: reason = "not_configured"
+        elif not row.active: reason = "deactivated"
+        elif _configuration_error(row): reason = f"invalid_configuration: {_configuration_error(row)}"
+        elif not health_is_fresh(row, ttl): reason = "stale_or_unhealthy_health"
+        elif not all(cap in set(row.capabilities or []) for cap in requirements): reason = f"missing_capabilities: {', '.join(cap for cap in requirements if cap not in set(row.capabilities or []))}"
+        elif not routed_engine._within_daily_limit(row): reason = "daily_request_limit"
+        elif not routed_engine._quota_available(row): reason = "provider_quota_exhausted"
+        if reason: excluded.append({"provider": row.provider, "model": row.model, "reason": reason})
+        else: eligible.append(row)
+    ranked = sorted(eligible, key=_health_rank_key)
+    return {"task_type": task_type, "required_capabilities": requirements, "health_ttl_seconds": ttl, "candidates": [{"provider": row.provider, "model": row.model, "rank": index + 1, "reason": "eligible"} for index, row in enumerate(ranked)], "excluded_candidates": excluded, "selected_provider": ranked[0].provider if ranked else None, "selected_model": ranked[0].model if ranked else None, "ranking_reason": "reliability → recent failures → p95 latency → average latency → operator preference → manual priority"}
+
+
+@router.get("/runtime-traces")
+async def runtime_traces(limit: int = Query(default=25, ge=1, le=100), _: User = Depends(require_developer)):
+    return {"traces": list_traces(limit)}
+
+
+@router.get("/runtime-traces/{trace_id}")
+async def runtime_trace(trace_id: str, _: User = Depends(require_developer)):
+    trace = get_trace(trace_id)
+    if not trace: raise HTTPException(status_code=404, detail="Runtime trace not found")
+    return trace
 
 
 @router.post("/routing/policy")
 async def routing_policy(request: RoutingPolicyRequest, db: Session = Depends(get_db), _: User = Depends(require_developer)):
     _ensure_catalog_rows(db)
     row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == request.provider.strip().lower()).first()
-    if not row:
-        raise HTTPException(status_code=404, detail=f"Provider not found: {request.provider}")
+    if not row: raise HTTPException(status_code=404, detail=f"Provider not found: {request.provider}")
     policy = dict(row.routing_policy or {})
-    policy.update({"mode": "deterministic", "fallback_enabled": request.fallback_enabled, "daily_request_limit": request.daily_request_limit})
+    policy.update({"mode": "health_gated_dynamic", "fallback_enabled": request.fallback_enabled, "daily_request_limit": request.daily_request_limit})
     row.routing_policy = policy
     db.commit()
     return {"provider": _public_provider(row)}
@@ -189,16 +262,21 @@ def _save_row(db: Session, request: ProviderSaveRequest) -> IntelligenceProvider
     row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == name).first()
     if not row: raise HTTPException(status_code=404, detail="Provider registry entry not found")
     meta = PROVIDER_CATALOG[name]
-    if request.model: row.model = request.model.strip()
-    if request.base_url: row.base_url = request.base_url.rstrip("/")
-    elif row.base_url is None: row.base_url = meta["base_url"]
+    model = (request.model.strip() if request.model else row.model or meta["model"])
+    base_url = request.base_url.rstrip("/") if request.base_url else row.base_url or meta["base_url"]
+    try:
+        validated = validate_provider_configuration(name, model, base_url)
+    except ProviderConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    row.model = validated["model"]
+    row.base_url = validated["base_url"]
     row.priority = request.priority
     if request.api_key:
         secret = request.api_key.strip(); row.encrypted_api_key = encrypt_secret(secret); row.api_key_last4 = secret[-4:]
     row.configured = True if name == "ollama" else bool(row.encrypted_api_key)
     row.last_error = None
     policy = dict(row.routing_policy or {})
-    policy.setdefault("mode", "deterministic"); policy.setdefault("fallback_enabled", True); policy.setdefault("daily_request_limit", None)
+    policy.setdefault("mode", "health_gated_dynamic"); policy.setdefault("fallback_enabled", True); policy.setdefault("daily_request_limit", None); policy.setdefault("operator_primary", False)
     row.routing_policy = policy
     return row
 
@@ -215,6 +293,8 @@ async def configure_provider_legacy(request: ProviderSaveRequest, db: Session = 
     row = _save_row(db, request)
     if row.provider != "ollama" and not row.encrypted_api_key: raise HTTPException(status_code=400, detail="Save provider credentials before activating this provider")
     if not _health_is_fresh(row, db): raise HTTPException(status_code=409, detail=f"Run a successful provider health check before activating {row.provider}")
+    for other in db.query(IntelligenceProviderConfig).all():
+        other.routing_policy = {**(other.routing_policy or {}), "operator_primary": other.provider == row.provider}
     row.active = True
     db.commit(); db.refresh(row)
     return {"active_provider": row.provider, "provider": _public_provider(row)}
@@ -227,11 +307,15 @@ async def activate_provider(request: ProviderActivateRequest, db: Session = Depe
     if not row: raise HTTPException(status_code=404, detail=f"Provider not found: {name}")
     if name != "ollama" and not row.encrypted_api_key: raise HTTPException(status_code=400, detail="Save provider credentials before activating this provider")
     if not row.configured: raise HTTPException(status_code=400, detail="Provider is not configured")
+    try: validate_provider_configuration(name, row.model, row.base_url)
+    except ProviderConfigurationError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not _health_is_fresh(row, db): raise HTTPException(status_code=409, detail=f"Run a successful provider health check before activating {name}")
+    for other in db.query(IntelligenceProviderConfig).all():
+        other.routing_policy = {**(other.routing_policy or {}), "operator_primary": other.provider == name}
     row.active = True
     row.last_error = None
     policy = dict(row.routing_policy or {})
-    policy.update({"mode": "deterministic", "fallback_enabled": bool(policy.get("fallback_enabled", True))})
+    policy.update({"mode": "health_gated_dynamic", "fallback_enabled": bool(policy.get("fallback_enabled", True)), "operator_primary": True})
     row.routing_policy = policy
     db.commit()
     active_rows = db.query(IntelligenceProviderConfig).all()
@@ -245,6 +329,9 @@ async def deactivate_provider(request: ProviderActivateRequest, db: Session = De
     row = db.query(IntelligenceProviderConfig).filter(IntelligenceProviderConfig.provider == name).first()
     if not row: raise HTTPException(status_code=404, detail=f"Provider not found: {name}")
     row.active = False
+    policy = dict(row.routing_policy or {})
+    policy["operator_primary"] = False
+    row.routing_policy = policy
     db.commit(); db.refresh(row)
     active_rows = db.query(IntelligenceProviderConfig).all()
     primary = _primary_active(active_rows, db)
@@ -258,12 +345,15 @@ async def test_provider(request: ProviderSaveRequest, db: Session = Depends(get_
     if not row: raise HTTPException(status_code=404, detail=f"Provider not found: {name}")
     supplied_key = request.api_key.strip() if request.api_key else None
     if name != "ollama" and not supplied_key and not row.encrypted_api_key: raise HTTPException(status_code=400, detail="Save credentials first or provide an API key for this test")
-    payload = _gateway_config(row, supplied_key)
-    if request.model: payload["model"] = request.model.strip()
-    if request.base_url: payload["base_url"] = request.base_url.rstrip("/")
     try:
+        payload = _gateway_config(row, supplied_key)
+        if request.model or request.base_url:
+            payload_config = validate_provider_configuration(name, request.model or row.model, request.base_url if request.base_url is not None else row.base_url)
+            payload.update(payload_config)
         result = await _call("/v1/generate", method="POST", payload={"prompt": "Reply with exactly: CAREEROS_AI_TEST_OK", "temperature": 0.0, **payload})
         row.last_tested_at = datetime.now(timezone.utc).isoformat(); row.last_test_status = "passed"; row.last_error = None; db.commit(); return result
+    except ProviderConfigurationError as exc:
+        row.last_tested_at = datetime.now(timezone.utc).isoformat(); row.last_test_status = "failed"; row.last_error = str(exc); db.commit(); raise HTTPException(status_code=400, detail=str(exc)) from exc
     except HTTPException as exc:
         row.last_tested_at = datetime.now(timezone.utc).isoformat(); row.last_test_status = "failed"; row.last_error = str(exc.detail)[:1000]; db.commit(); raise
 

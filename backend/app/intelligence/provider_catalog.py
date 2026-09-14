@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 
 PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
-    "ollama": {"label": "Ollama", "category": "local", "model": "gemma3:4b", "base_url": "http://host.docker.internal:11434", "capabilities": ["local", "private", "structured_output", "reasoning"]},
-    "openrouter": {"label": "OpenRouter", "category": "cloud", "model": "openrouter/free", "base_url": "https://openrouter.ai/api/v1", "capabilities": ["routing", "model_choice", "structured_output", "reasoning"]},
+    "ollama": {"label": "Ollama", "category": "local", "model": os.getenv("OLLAMA_MODEL", "gemma3:4b"), "base_url": os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"), "capabilities": ["local", "private", "structured_output", "reasoning"]},
+    "openrouter": {"label": "OpenRouter", "category": "cloud", "model": os.getenv("OPENROUTER_MODEL", ""), "base_url": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"), "capabilities": ["routing", "model_choice", "structured_output", "reasoning"]},
     "openai": {"label": "OpenAI", "category": "cloud", "model": "gpt-5.6-luna", "base_url": "https://api.openai.com/v1", "capabilities": ["reasoning", "structured_output", "vision"]},
     "gemini": {"label": "Google Gemini", "category": "cloud", "model": "gemini-3.5-flash-lite", "base_url": "", "capabilities": ["reasoning", "structured_output", "long_context"]},
     "anthropic": {"label": "Anthropic Claude", "category": "cloud", "model": "claude-sonnet-5", "base_url": "https://api.anthropic.com", "capabilities": ["reasoning", "long_context", "structured_output"]},

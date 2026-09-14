@@ -6,8 +6,10 @@ from typing import Any
 import httpx
 
 
+_DEFAULT_OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free"
+
 DEFAULTS = {
-    "openrouter": ("https://openrouter.ai/api/v1", "openrouter/free"),
+    "openrouter": ("https://openrouter.ai/api/v1", _DEFAULT_OPENROUTER_MODEL),
     "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"),
     "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"),
     "xai": ("https://api.x.ai/v1", "grok-4.6"),

@@ -65,8 +65,6 @@ def _section_score(items: list[dict], require_dedicated: bool = True) -> tuple[f
 
 
 def _calculate(profile, experiences, educations, certifications, skills, projects, accomplishments, documents, work_preferences, db):
-    # Content quality and evidence quality are deliberately separate. A CV-derived
-    # fact is valid reported information, but a dedicated supporting document is stronger evidence.
     profile_content = sum(bool(getattr(profile, f, None)) for f in ("full_name", "location", "title", "primary_email", "primary_phone", "linkedin_url")) / 6
     summary_content = 1 if profile.summary else 0
     emp = [_fact(x, "employment", profile.id, db) for x in experiences]
@@ -102,18 +100,24 @@ def _calculate(profile, experiences, educations, certifications, skills, project
 
 @router.post("/documents/{document_id}/ai-reconcile")
 def ai_reconcile_document(document_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """AI-first ingestion: understand the complete CV and populate CareerOS identity facts."""
+    """Explicit AI-first ingestion. Upload never calls this workflow."""
     profile = _profile(user, db)
     document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile.id).first()
-    if not document: raise HTTPException(404, "Document not found")
-    if document.document_category not in {"cv", "employment", "other"}: raise HTTPException(400, "AI CV ingestion is only available for CV or employment documents")
+    if not document:
+        raise HTTPException(404, "Document not found")
+    if document.document_category not in {"cv", "employment", "other"}:
+        raise HTTPException(400, "AI CV ingestion is only available for CV or employment documents")
     try:
         result = ingest_cv_with_ai(document, profile, db)
-        try: enrich_document(document, profile, db); db.commit()
-        except DocumentEnrichmentError: pass
+        # Do not invoke document_enrichment here. AI CV ingestion is intentionally one
+        # explicit Global Intelligence pass; enrichment is a separate explicit operation.
         return result
     except AICVIngestionError as exc:
+        db.rollback()
         raise HTTPException(422, str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.post("/documents/{document_id}/ai-enrich")
@@ -122,8 +126,11 @@ def ai_enrich_document(document_id: UUID, user: User = Depends(get_current_user)
     document = db.query(Document).filter(Document.id == document_id, Document.candidate_id == profile.id).first()
     if not document: raise HTTPException(404, "Document not found")
     try:
-        result = enrich_document(document, profile, db); db.commit(); return {"status": "completed", "document_id": str(document.id), **result}
+        result = enrich_document(document, profile, db)
+        db.commit()
+        return {"status": "completed", "document_id": str(document.id), **result}
     except DocumentEnrichmentError as exc:
+        db.rollback()
         raise HTTPException(422, str(exc)) from exc
 
 
@@ -161,6 +168,6 @@ def enriched_overview(user: User = Depends(get_current_user), db: Session = Depe
         "personas": [{"id": str(x.id), "name": x.name, "description": x.description, "positioning": x.positioning, "is_active": x.is_active, "target_titles": x.target_titles or []} for x in personas],
         "persona_suggestions": [{"id": str(x.id), "name": x.name, "role_family": x.role_family, "positioning": x.positioning, "target_titles": x.target_titles or [], "confidence": x.confidence, "reason": x.reason, "missing_evidence": x.missing_evidence or [], "supporting_document_ids": x.supporting_document_ids or []} for x in suggestions],
         "section_navigation": sections,
-        "intelligence": {"profile_completeness": completeness, "evidence_coverage": evidence_coverage, "data_confidence": round(sum(float(x.confidence or 0) for x in certifications + educations + skills) / max(1, len(certifications) + len(educations) + len(skills)) * 100, 1), "persona_readiness": 100.0 if personas else min(100.0, round((len(experiences) * 15 + len(skills) * 2), 1))},
+        "intelligence": {"profile_completeness": completeness, "evidence_coverage": evidence_coverage, "data_confidence": round(sum(float(x.confidence or 0) for x in certifications + educations + skills) / max(1, len(certifications) + len(educations) + len(skills)) * 100, 1), "persona_readiness": 100.0 if personas else 0.0},
         "evidence_requirements": evidence_requirements,
     }

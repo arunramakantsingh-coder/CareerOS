@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -6,6 +7,7 @@ from app.api import health, health_check, auth, oauth, persona, persona_skill_we
 from app.core.config import settings
 from app.intelligence.engine import engine as legacy_engine
 from app.intelligence.engine_runtime import routed_engine
+from app.intelligence.health_scheduler import run_health_scheduler
 from app.utils.logging import setup_logging
 
 setup_logging(settings.LOG_LEVEL)
@@ -16,10 +18,21 @@ async def lifespan(app: FastAPI):
     # routed runtime. This bridge avoids a schema or migration change.
     legacy_engine.generate_direct = routed_engine.generate_direct
     legacy_engine.execute = routed_engine.execute
+    stop_event = asyncio.Event()
+    scheduler_task = asyncio.create_task(run_health_scheduler(stop_event))
     logging.getLogger(__name__).info(f"Starting CareerOS API in {settings.ENVIRONMENT} mode")
     logging.getLogger(__name__).info("Global Intelligence routed runtime enabled")
-    yield
-    logging.getLogger(__name__).info("Shutting down CareerOS API")
+    logging.getLogger(__name__).info("Automatic Intelligence provider health scheduler enabled")
+    try:
+        yield
+    finally:
+        stop_event.set()
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
+        logging.getLogger(__name__).info("Shutting down CareerOS API")
 
 app = FastAPI(title="CareerOS API", version="0.1.0", description="AI-Powered Global Career Operating System", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.ALLOWED_ORIGINS, allow_origin_regex=r"^https?://(localhost|127\\.0\\.1|10\\.\d{1,3}\\.\d{1,3}\\.\d{1,3}|192\\.168\\.\d{1,3}\\.\d{1,3}|172\\.(1[6-9]|2\\d|3[0-1])\\.\d{1,3}\\.\d{1,3}):3000$", allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

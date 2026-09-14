@@ -33,6 +33,7 @@ def ingest_cv_with_ai(document: Document, profile: CandidateProfile, db: Session
     text = (document.source_metadata or {}).get("extracted_text", "")
     if not isinstance(text, str) or not text.strip():
         raise AICVIngestionError("No extracted document text is available")
+    text = _prepare_cv_text(text)
 
     request = IntelligenceRequest(
         task=CV_AI_INSTRUCTION,
@@ -74,6 +75,11 @@ def ingest_cv_with_ai(document: Document, profile: CandidateProfile, db: Session
         "provider": result.provider,
         "model": result.model,
         "trace_id": str(result.trace_id) if result.trace_id else None,
+        "request_metrics": {
+            "cv_text_chars": len(text),
+            "instruction_chars": len(CV_AI_INSTRUCTION),
+            "schema_chars": len(json.dumps(CV_AI_OUTPUT_SCHEMA, separators=(",", ":"))),
+        },
         "counts": counts,
         "extraction_result_id": str(extraction.id),
     }
@@ -168,21 +174,10 @@ def _apply_employment(document: Document, profile: CandidateProfile, incoming: l
         end_date = _date(item.get("end_date"))
         existing = (
             db.query(ProfessionalExperience)
-            .filter(
-                ProfessionalExperience.candidate_id == profile.id,
-                ProfessionalExperience.company.ilike(employer),
-                ProfessionalExperience.title.ilike(title),
-            )
+            .filter(ProfessionalExperience.candidate_id == profile.id, ProfessionalExperience.company.ilike(employer), ProfessionalExperience.title.ilike(title))
             .all()
         )
-        row = next(
-            (
-                candidate
-                for candidate in existing
-                if _same_date(candidate.start_date, start_date) and _same_date(candidate.end_date, end_date)
-            ),
-            None,
-        )
+        row = next((candidate for candidate in existing if _same_date(candidate.start_date, start_date) and _same_date(candidate.end_date, end_date)), None)
         if not row:
             row = ProfessionalExperience(
                 candidate_id=profile.id,
@@ -319,6 +314,14 @@ def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
     result["skills"] = [x.strip() for x in result["skills"] if isinstance(x, str) and x.strip()]
     return result
+
+
+def _prepare_cv_text(text: str) -> str:
+    text = text.replace("\x00", "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{4,}", "\n\n\n", text)
+    return text.strip()
 
 
 def _norm(value: Any) -> str:

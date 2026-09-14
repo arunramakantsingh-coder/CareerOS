@@ -29,9 +29,17 @@ def validate_provider_configuration(provider: str, model: str | None, base_url: 
     host = _host(selected_url)
 
     if name != "ollama" and (selected_model.lower() == "gemma3:4b" or host in {"host.docker.internal", "localhost", "127.0.0.1"}):
-        raise ProviderConfigurationError(
-            f"{meta['label']} cannot use an Ollama/local configuration ({selected_model} / {selected_url or 'local endpoint'})."
-        )
+        if name == "openrouter":
+            # Older local development databases could contain the Ollama model and
+            # endpoint under the OpenRouter row. Treat that state as legacy data and
+            # resolve it to the pinned OpenRouter catalog entry at runtime.
+            selected_model = str(meta["model"])
+            selected_url = str(meta["base_url"])
+            host = _host(selected_url)
+        else:
+            raise ProviderConfigurationError(
+                f"{meta['label']} cannot use an Ollama/local configuration ({selected_model} / {selected_url or 'local endpoint'})."
+            )
 
     if name == "ollama":
         if not selected_url:
@@ -55,11 +63,8 @@ def validate_provider_configuration(provider: str, model: str | None, base_url: 
             raise ProviderConfigurationError("OpenRouter requires an explicit model id; configure OPENROUTER_MODEL or select a provider/model in CareerOS.")
         if selected_model.lower() in {"openrouter/free", "openrouter/free:auto", "free"}:
             raise ProviderConfigurationError("OpenRouter free-model routing is disabled for CareerOS intelligence. Configure one explicit OpenRouter model id.")
-        if selected_model.lower().endswith(":free"):
-            # A concrete free model is deterministic and is allowed; only the dynamic
-            # openrouter/free selector is prohibited.
-            if "/" not in selected_model:
-                raise ProviderConfigurationError("OpenRouter requires a provider/model id.")
+        if selected_model.lower().endswith(":free") and "/" not in selected_model:
+            raise ProviderConfigurationError("OpenRouter requires a provider/model id.")
         if "/" not in selected_model:
             raise ProviderConfigurationError("OpenRouter requires an explicit provider/model id.")
         selected_url = selected_url or meta["base_url"]

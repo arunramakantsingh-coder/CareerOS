@@ -32,7 +32,7 @@ STORAGE_ROOT = Path(__import__("os").getenv("CAREEROS_STORAGE_ROOT", "/app/stora
 def profile_for(user: User, db: Session) -> CandidateProfile:
     profile = db.query(CandidateProfile).filter(CandidateProfile.user_id == user.id, CandidateProfile.is_active.is_(True)).first()
     if not profile:
-        profile = CandidateProfile(user_id=user.id, full_name=user.name, primary_email=user.email, reconciliation_status="pending")
+        profile = CandidateProfile(user_id=user.id, full_name=None, primary_email=None, reconciliation_status="pending")
         db.add(profile); db.commit(); db.refresh(profile)
     return profile
 

@@ -71,7 +71,7 @@ def _persist(document: Document, profile: CandidateProfile, payload: dict[str, A
         value = profile_data.get(field)
         if value not in (None, "", []) and getattr(profile, field, None) in (None, ""): setattr(profile, field, value)
     profile.industries = _merge(profile.industries or [], profile_data.get("industries") or [])
-    raw_experiences = [_sanitize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]; applied, review, protected = _apply_experiences(document, raw_experiences, db)
+    raw_experiences = [_sanitize_experience(item) for item in payload.get("experiences", []) if isinstance(item, dict)]; applied, review, protected, mutation_count = _apply_experiences(document, raw_experiences, db)
     for item in payload.get("skills", []):
         if isinstance(item, dict): _skill(document, profile, item.get("name"), item.get("category"), item.get("proficiency"), db)
     for item in payload.get("certifications", []):
@@ -83,7 +83,7 @@ def _persist(document: Document, profile: CandidateProfile, payload: dict[str, A
         if item.get("source_document_id") == str(document.id): _evidence(profile.id, document, "project", item.get("id"), 0.85, item.get("description"), db)
     for item in accomplishments:
         if item.get("source_document_id") == str(document.id): _evidence(profile.id, document, "accomplishment", item.get("id"), 0.85, item.get("description"), db)
-    return {"experiences": len(applied), "needs_review": len(review), "protected": len(protected), "skills": len(payload.get("skills", [])), "certifications": len(payload.get("certifications", [])), "education": len(payload.get("education", [])), "projects": len(projects), "accomplishments": len(accomplishments)}
+    return {"experiences": len(applied), "needs_review": len(review), "protected": len(protected), "mutation_count": mutation_count, "skills": len(payload.get("skills", [])), "certifications": len(payload.get("certifications", [])), "education": len(payload.get("education", [])), "projects": len(projects), "accomplishments": len(accomplishments)}
 
 
 def _skill(doc: Document, profile: CandidateProfile, skill_name: Any, category: Any, proficiency: Any, db: Session) -> None:

@@ -45,6 +45,30 @@ def test_build_openrouter_legacy_router_value_is_not_silently_selected():
     assert provider.model == "openrouter/free"
 
 
+def test_openrouter_upstream_error_identifies_google_ai_studio():
+    import httpx
+
+    response = httpx.Response(
+        429,
+        json={
+            "error": {
+                "message": "Provider returned error",
+                "code": 429,
+                "metadata": {
+                    "raw": '{"provider_name":"Google AI Studio","provider_error_code":"429"}'
+                },
+            }
+        },
+    )
+    assert OpenAICompatibleProvider._openrouter_upstream_slug(response) == "google-ai-studio"
+
+
+def test_openrouter_provider_preferences_enable_failover():
+    preferences = OpenAICompatibleProvider._openrouter_provider_preferences({"type": "object"})
+    assert preferences["allow_fallbacks"] is True
+    assert preferences["require_parameters"] is True
+
+
 def test_build_gemini_provider():
     provider = build_provider(
         {

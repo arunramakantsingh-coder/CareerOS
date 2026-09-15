@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.roles import require_developer
 from app.intelligence.ai_cv_ingestion import _normalize_payload, _parse, _persist, _prepare_cv_text
-from app.intelligence.contracts import IntelligenceRequest
 from app.intelligence.engine import engine
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
@@ -24,6 +24,7 @@ class CVJsonLabRequest(BaseModel):
     document_id: UUID | None = None
     instruction: str = Field(min_length=1, max_length=12000)
     template: dict[str, Any]
+    model: str | None = Field(default=None, min_length=1, max_length=200)
     cv_text_override: str | None = Field(default=None, max_length=120000)
 
 
@@ -92,13 +93,27 @@ async def extract_cv_json(request: CVJsonLabRequest, user: User = Depends(requir
     schema = _template_to_schema(request.template)
     compact_instruction = " ".join(request.instruction.split())
     prompt = _compact({"instruction": f"{compact_instruction} Return minified JSON only; no markdown or commentary.", "format": request.template, "cv": text})
-
-    result = await engine.execute(IntelligenceRequest(task=prompt, task_type="cv_extraction", context={}, output_schema=schema, tools=[], temperature=0.0))
-    if result.status != "completed":
-        raise HTTPException(422, f"CV JSON extraction failed: {result.result}")
+    started = time.perf_counter()
+    payload: dict[str, Any] = {
+        "prompt": prompt,
+        "task_type": "cv_extraction",
+        "system": "You are the CareerOS Global Intelligence Engine. Treat supplied CV text as the only source of truth. Do not invent or infer career facts. Return only data matching the supplied JSON format.",
+        "response_schema": schema,
+        "temperature": 0.0,
+    }
+    if request.model:
+        payload["model"] = request.model.strip()
+    try:
+        result = await engine.generate_direct(payload)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(422, f"CV JSON extraction failed: {exc}") from exc
+    backend_elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
+    response_text = result.get("response", "")
+    if not isinstance(response_text, str) or not response_text.strip():
+        raise HTTPException(422, "CV JSON extraction returned an empty AI response")
 
     try:
-        parsed = _parse(result.result)
+        parsed = _parse(response_text)
     except Exception as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -114,18 +129,29 @@ async def extract_cv_json(request: CVJsonLabRequest, user: User = Depends(requir
     expected_sections = list(request.template.keys())
     actual_sections = list(parsed.keys()) if isinstance(parsed, dict) else []
     missing_sections = [key for key in expected_sections if key not in actual_sections]
+    routing = result.get("routing") or {}
+    attempts = routing.get("attempts") or []
+    successful_attempt = next((item for item in reversed(attempts) if item.get("status") == "success"), None)
+    native_duration_ms = None
+    if result.get("total_duration") is not None:
+        try:
+            native_duration_ms = round(float(result["total_duration"]) / 1_000_000, 1)
+        except (TypeError, ValueError):
+            native_duration_ms = None
+    ai_duration_ms = native_duration_ms if native_duration_ms is not None else (successful_attempt or {}).get("latency_ms")
 
     return {
         "status": "completed",
         "document": _source_payload(document, text),
         "source_mode": "debug_override" if request.cv_text_override is not None else "document_vault",
-        "provider": result.provider,
-        "model": result.model,
-        "trace_id": str(result.trace_id) if result.trace_id else None,
+        "provider": result.get("provider"),
+        "model": result.get("model"),
+        "trace_id": routing.get("trace_id"),
         "output": compact_output,
         "output_json": parsed,
         "validation": {"valid_json": True, "expected_sections": expected_sections, "actual_sections": actual_sections, "missing_sections": missing_sections},
         "application_mapping": {"profile_mutated": False, "would_apply": would_apply, "normalized_sections": list(normalized.keys())},
         "metrics": {"cv_chars": len(text), "instruction_chars": len(compact_instruction), "template_chars": len(compact_template), "compact_template_chars": len(compact_template), "prompt_chars": len(prompt), "output_chars": len(compact_output)},
-        "routing": {"task_type": "cv_extraction", "fallback_used": result.fallback_used, "provider_attempts": result.provider_attempts},
+        "timing": {"ai_generation_ms": ai_duration_ms, "gateway_attempt_ms": (successful_attempt or {}).get("latency_ms"), "backend_end_to_end_ms": backend_elapsed_ms, "native_provider_duration_ms": native_duration_ms},
+        "routing": {"task_type": "cv_extraction", "selected_provider": routing.get("selected_provider"), "selected_model": routing.get("selected_model"), "fallback_used": routing.get("fallback_used"), "provider_attempts": attempts},
     }

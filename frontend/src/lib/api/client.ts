@@ -53,6 +53,7 @@ class ApiClient {
   activatePersonaSuggestion(id: string) { return this.post<any>(`/api/v1/identity/personas/suggestions/${id}/activate`, {}); }
   connectionDiagnostics() { return this.get<any>('/api/v1/identity/connections/diagnostics'); }
   intelligenceProviders() { return this.get<any>('/api/v1/intelligence/providers'); }
+  intelligenceProviderModels(provider = 'ollama') { return this.get<any>(`/api/v1/intelligence/providers/models?provider=${encodeURIComponent(provider)}`); }
   intelligenceObservability() { return this.get<any>('/api/v1/intelligence/observability'); }
   intelligenceProviderHealth() { return this.get<any>('/api/v1/intelligence/providers/health'); }
   intelligenceProviderHealthPolicy() { return this.get<any>('/api/v1/intelligence/providers/health-policy'); }
@@ -65,7 +66,7 @@ class ApiClient {
   saveIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/save', body); }
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }
   deactivateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/deactivate', { provider }); }
-  testIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }
+  testIntelligenceProvider(body: { provider: string; model?: string; base_url?: string; api_key?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }
   configureIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/configure', body); }
   personas(userId: string) { return this.get<any[]>(`/api/v1/personas/?user_id=${encodeURIComponent(userId)}`); }
   createPersona(body: any) { return this.post<any>('/api/v1/personas/', body); }

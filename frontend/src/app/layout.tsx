@@ -1,6 +1,8 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import CareerOSToast from "@/components/CareerOSToast";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -10,17 +12,16 @@ export const metadata: Metadata = {
   description: "Your intelligent career platform for global opportunities",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <AuthProvider>
-          <main className="min-h-screen bg-gray-50">{children}</main>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <CareerOSToast />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

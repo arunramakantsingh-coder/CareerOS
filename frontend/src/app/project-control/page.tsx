@@ -9,6 +9,7 @@ const cards = [
   ['Roadmap', 'Planned releases, dependencies and controlled progression.', '/roadmap', '➜'],
   ['Runtime Diagnostics', 'Backend, database, authentication and application runtime health.', '/project-control/runtime-diagnostics', '◉'],
   ['Intelligence Engine', 'Local/provider-neutral AI gateway, capabilities and model runtime status.', '/project-control/intelligence', '✦'],
+  ['CV JSON Lab', 'Paste a compact JSON output contract and short AI instruction, inspect sizes and run isolated CV extraction tests.', '/project-control/intelligence/cv-json-lab', '⌘'],
   ['Test Data & Reset', 'Safe scoped test-data controls and the master developer reset.', '/project-control/test-data', '↻'],
   ['Processing / Jobs', 'Background processing visibility and future job execution controls.', '/project-control/processing', '⚙'],
   ['Version & Git History', 'Branches, commits, baselines and known recovery points.', '/project-control/version', '◇'],

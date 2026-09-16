@@ -9,7 +9,7 @@ COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py providers.py health.py ./
+COPY app.py providers.py health.py streaming.py ./
 
 EXPOSE 8100
 

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from health import check_provider_health
 from providers import OllamaProvider, ProviderError, build_provider
+from streaming import normalize_ollama_chunk
 
 app = FastAPI(title="CareerOS Intelligence Engine", version="0.3.0", description="Provider-neutral global AI gateway for CareerOS.")
 REQUEST_TIMEOUT = float(os.getenv("INTELLIGENCE_TIMEOUT_SECONDS", "300"))
@@ -93,40 +94,24 @@ async def provider_health(request: ProviderHealthRequest) -> dict[str, Any]:
     provider = request.provider.strip().lower()
     if provider not in SUPPORTED_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {provider}")
-    return await check_provider_health(
-        provider=provider,
-        model=request.model,
-        api_key=request.api_key,
-        base_url=request.base_url,
-        timeout=min(30.0, max(5.0, REQUEST_TIMEOUT)),
-    )
+    return await check_provider_health(provider=provider, model=request.model, api_key=request.api_key, base_url=request.base_url, timeout=min(30.0, max(5.0, REQUEST_TIMEOUT)))
 
 
 @app.get("/v1/capabilities")
 async def capabilities() -> dict[str, Any]:
     active = CONFIG["AI_PROVIDER"].strip().lower()
-    return {
-        "provider": active,
-        "model": CONFIG.get("OLLAMA_MODEL") if active == "ollama" else None,
-        "providers": SUPPORTED_PROVIDERS,
-        "capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "multi_provider", "fallback_routing", "usage_policy_ready", "provider_health", "native_streaming", "native_thinking_telemetry"],
-    }
+    return {"provider": active, "model": CONFIG.get("OLLAMA_MODEL") if active == "ollama" else None, "providers": SUPPORTED_PROVIDERS, "capabilities": ["structured_output", "provider_routing", "document_intelligence", "search_reasoning", "opportunity_reasoning", "research_synthesis", "multi_provider", "fallback_routing", "usage_policy_ready", "provider_health", "native_streaming", "native_thinking_telemetry"]}
 
 
 @app.post("/v1/configure")
 async def configure(request: ConfigureRequest) -> dict[str, Any]:
     provider = request.provider.strip().lower()
-    if provider not in SUPPORTED_PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {provider}")
-    if provider != "ollama" and not request.api_key:
-        raise HTTPException(status_code=400, detail=f"API key is required for {provider} when configuring the gateway directly")
+    if provider not in SUPPORTED_PROVIDERS: raise HTTPException(status_code=400, detail=f"Unsupported AI provider: {provider}")
+    if provider != "ollama" and not request.api_key: raise HTTPException(status_code=400, detail=f"API key is required for {provider} when configuring the gateway directly")
     CONFIG["AI_PROVIDER"] = provider
-    if request.model:
-        CONFIG[f"{provider.upper()}_MODEL"] = request.model
-    if request.base_url:
-        CONFIG[f"{provider.upper()}_BASE_URL"] = request.base_url.rstrip("/")
-    if request.api_key:
-        CONFIG[f"{provider.upper()}_API_KEY"] = request.api_key
+    if request.model: CONFIG[f"{provider.upper()}_MODEL"] = request.model
+    if request.base_url: CONFIG[f"{provider.upper()}_BASE_URL"] = request.base_url.rstrip("/")
+    if request.api_key: CONFIG[f"{provider.upper()}_API_KEY"] = request.api_key
     return {"active_provider": provider, "provider": await _configured_provider(provider).health()}
 
 
@@ -136,8 +121,7 @@ async def generate(request: GenerateRequest) -> dict[str, Any]:
     try:
         provider = build_provider(_provider_config(request, provider_name), REQUEST_TIMEOUT)
         result = await provider.generate(prompt=request.prompt, system=request.system, response_schema=request.response_schema, temperature=request.temperature)
-        if not result.response or not result.response.strip():
-            raise ProviderError(f"{provider_name} returned an empty response")
+        if not result.response or not result.response.strip(): raise ProviderError(f"{provider_name} returned an empty response")
     except ProviderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"provider": result.provider, "model": result.model, "response": result.response, "done": result.done, "total_duration": result.total_duration, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}
@@ -145,11 +129,7 @@ async def generate(request: GenerateRequest) -> dict[str, Any]:
 
 @app.post("/v1/generate/stream")
 async def generate_stream(request: GenerateRequest):
-    """Provider-native stream normalized to newline-delimited JSON events.
-
-    Ollama is streamed directly so thinking/content chunks and final native metrics are
-    observable. Other providers use their existing non-stream adapter and emit one final event.
-    """
+    """Normalize provider-native generation into newline-delimited JSON events."""
     provider_name = (request.provider or CONFIG["AI_PROVIDER"]).strip().lower()
 
     async def events():
@@ -157,35 +137,19 @@ async def generate_stream(request: GenerateRequest):
             provider = build_provider(_provider_config(request, provider_name), REQUEST_TIMEOUT)
             yield json.dumps({"type": "started", "provider": provider_name, "model": getattr(provider, "model", request.model)}, ensure_ascii=False) + "\n"
             if isinstance(provider, OllamaProvider):
-                payload: dict[str, Any] = {
-                    "model": provider.model,
-                    "prompt": request.prompt,
-                    "stream": True,
-                    "options": {"temperature": request.temperature},
-                }
-                if request.system:
-                    payload["system"] = request.system
-                if request.response_schema:
-                    payload["format"] = request.response_schema
-                if request.think is not None:
-                    payload["think"] = request.think
+                payload: dict[str, Any] = {"model": provider.model, "prompt": request.prompt, "stream": True, "options": {"temperature": request.temperature}}
+                if request.system: payload["system"] = request.system
+                if request.response_schema: payload["format"] = request.response_schema
+                if request.think is not None: payload["think"] = request.think
                 async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                     async with client.stream("POST", f"{provider.base_url}/api/generate", json=payload) as response:
                         response.raise_for_status()
                         async for line in response.aiter_lines():
-                            if not line.strip():
-                                continue
-                            chunk = json.loads(line)
-                            event = {"type": "chunk", "provider": provider.name, "model": chunk.get("model") or provider.model}
-                            for key in ("response", "thinking", "done", "done_reason", "total_duration", "load_duration", "prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration"):
-                                if key in chunk:
-                                    event[key] = chunk[key]
-                            yield json.dumps(event, ensure_ascii=False) + "\n"
+                            if not line.strip(): continue
+                            yield json.dumps(normalize_ollama_chunk(json.loads(line), provider.name, provider.model), ensure_ascii=False) + "\n"
                 return
-
             result = await provider.generate(prompt=request.prompt, system=request.system, response_schema=request.response_schema, temperature=request.temperature)
-            if not result.response or not result.response.strip():
-                raise ProviderError(f"{provider_name} returned an empty response")
+            if not result.response or not result.response.strip(): raise ProviderError(f"{provider_name} returned an empty response")
             yield json.dumps({"type": "chunk", "provider": result.provider, "model": result.model, "response": result.response, "done": True, "total_duration": result.total_duration, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}, ensure_ascii=False) + "\n"
         except (ProviderError, httpx.HTTPError, json.JSONDecodeError) as exc:
             yield json.dumps({"type": "error", "provider": provider_name, "error": str(exc)[:1600]}, ensure_ascii=False) + "\n"

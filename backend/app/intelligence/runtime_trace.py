@@ -6,7 +6,6 @@ from threading import Lock
 from typing import Any
 from uuid import UUID, uuid4
 
-
 _MAX_TRACES = 100
 _MAX_EVENTS = 250
 _LOCK = Lock()
@@ -35,6 +34,12 @@ def start_trace(task_type: str, required_capabilities: list[str], *, context: di
         "fallback_used": False,
         "final_provider": None,
         "total_latency_ms": 0.0,
+        "thinking_available": False,
+        "thinking_chars": 0,
+        "thinking_text": "",
+        "output_chars": 0,
+        "output_preview": "",
+        "provider_metrics": {},
         "events": [],
     }
     if context:

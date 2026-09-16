@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.roles import require_developer
 from app.intelligence.ai_cv_ingestion import _normalize_payload, _parse, _persist, _prepare_cv_text
+from app.intelligence.cv_ai_contract import build_cv_extraction_prompt, compact_json
 from app.intelligence.engine import engine
 from app.models.candidate_profile import CandidateProfile
 from app.models.document import Document
@@ -29,7 +30,7 @@ class CVJsonLabRequest(BaseModel):
 
 
 def _compact(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+    return compact_json(value)
 
 
 def _looks_like_schema(value: Any) -> bool:
@@ -91,12 +92,19 @@ async def extract_cv_json(request: CVJsonLabRequest, user: User = Depends(requir
 
     compact_template = _compact(request.template)
     schema = _template_to_schema(request.template)
-    compact_instruction = " ".join(request.instruction.split())
-    prompt = _compact({"instruction": f"{compact_instruction} Return minified JSON only; no markdown or commentary.", "format": request.template, "cv": text})
+    prompt = build_cv_extraction_prompt(
+        instruction=request.instruction,
+        template=request.template,
+        document_id=str(document.id),
+        filename=document.original_filename,
+        category=document.document_category,
+        text=text,
+    )
     started = time.perf_counter()
     payload: dict[str, Any] = {
         "prompt": prompt,
         "task_type": "cv_extraction",
+        "trace_context": {"document_id": str(document.id), "filename": document.original_filename},
         "system": "You are the CareerOS Global Intelligence Engine. Treat supplied CV text as the only source of truth. Do not invent or infer career facts. Return only data matching the supplied JSON format.",
         "response_schema": schema,
         "temperature": 0.0,
@@ -147,11 +155,12 @@ async def extract_cv_json(request: CVJsonLabRequest, user: User = Depends(requir
         "provider": result.get("provider"),
         "model": result.get("model"),
         "trace_id": routing.get("trace_id"),
+        "thinking": result.get("thinking"),
         "output": compact_output,
         "output_json": parsed,
         "validation": {"valid_json": True, "expected_sections": expected_sections, "actual_sections": actual_sections, "missing_sections": missing_sections},
         "application_mapping": {"profile_mutated": False, "would_apply": would_apply, "normalized_sections": list(normalized.keys())},
-        "metrics": {"cv_chars": len(text), "instruction_chars": len(compact_instruction), "template_chars": len(compact_template), "compact_template_chars": len(compact_template), "prompt_chars": len(prompt), "output_chars": len(compact_output)},
+        "metrics": {"cv_chars": len(text), "instruction_chars": len(" ".join(request.instruction.split())), "template_chars": len(compact_template), "compact_template_chars": len(compact_template), "prompt_chars": len(prompt), "output_chars": len(compact_output)},
         "timing": {"ai_generation_ms": ai_duration_ms, "gateway_attempt_ms": (successful_attempt or {}).get("latency_ms"), "backend_end_to_end_ms": backend_elapsed_ms, "native_provider_duration_ms": native_duration_ms},
         "routing": {"task_type": "cv_extraction", "selected_provider": routing.get("selected_provider"), "selected_model": routing.get("selected_model"), "fallback_used": routing.get("fallback_used"), "provider_attempts": attempts},
     }

@@ -1,4 +1,3 @@
-﻿from datetime import datetime
 from sqlalchemy import Column, DateTime, String, Boolean, Integer, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -9,26 +8,22 @@ from app.models.base import Base, TimestampMixin
 
 class User(Base, TimestampMixin):
     """User model."""
-    
     __tablename__ = "users"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
-    
     email = Column(String(255), unique=True, index=True, nullable=False)
     name = Column(String(255), nullable=True)
     password_hash = Column(String(255), nullable=True)
-    
+    role = Column(String(30), nullable=False, default="user", index=True)
     locale = Column(String(10), default="en-US")
     timezone = Column(String(50), default="UTC")
     consent_flags = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
-    
     candidate_location = Column(String(255), nullable=True)
     candidate_timezone = Column(String(50), nullable=True)
     candidate_authorization = Column(JSON, nullable=True)
-    
-    # Relationships
+
     tenant = relationship("Tenant", back_populates="users")
     career_profiles = relationship("CareerProfile", back_populates="user")
     career_preferences = relationship("CareerPreference", back_populates="user", uselist=False)

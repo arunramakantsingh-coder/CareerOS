@@ -110,6 +110,21 @@ class ConsentResponse(BaseModel):
 
 
 # ============================================
+# PASSWORD CREDENTIALS
+# ============================================
+
+class PasswordStatusResponse(BaseModel):
+    """Whether the authenticated account has a local password credential."""
+    has_password: bool
+
+
+class PasswordCredentialRequest(BaseModel):
+    """Set or change the authenticated user's local password."""
+    new_password: str = Field(..., min_length=8)
+    current_password: Optional[str] = None
+
+
+# ============================================
 # PASSWORD RESET
 # ============================================
 

@@ -1,0 +1,106 @@
+name: CareerOS M02 Identity CI
+
+on:
+  push:
+    branches:
+      - 'working/m02-professional-identity-v1.6-reconciled-20260905'
+      - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
+      - 'feature/m02-developer-control-layer-20260906'
+      - 'feature/m02-intelligence-foundation-20260908'
+      - 'feature/m02-deterministic-foundation-repair-20260908'
+      - 'feature/m02-document-knowledge-retrieval-20260909'
+      - 'feature/intelligence-provider-gateway-20260912'
+  pull_request:
+    branches:
+      - 'working/m02-professional-identity-v1.6-reconciled-20260905'
+      - 'working/m02-professional-identity-v1.6-ai-neutral-baseline-20260906'
+      - 'feature/m02-developer-control-layer-20260906'
+      - 'feature/m02-intelligence-foundation-20260908'
+      - 'feature/m02-deterministic-foundation-repair-20260908'
+      - 'feature/m02-document-knowledge-retrieval-20260909'
+      - 'feature/intelligence-provider-gateway-20260912'
+
+jobs:
+  database-migrations:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PYTHONPATH: .
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/careeros
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: careeros
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d careeros"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt pytest
+      - name: Validate migration graph and pre-migration database
+        run: python scripts/validate_database.py --phase pre-migration
+      - name: Upgrade fresh database to Alembic head
+        run: alembic upgrade head
+      - name: Validate post-migration database
+        run: python scripts/validate_database.py --phase post-migration
+      - name: Exercise legacy 017 revision compatibility
+        run: |
+          python -c "from sqlalchemy import create_engine, text; import os; e=create_engine(os.environ['DATABASE_URL']); c=e.connect(); c.execute(text('DELETE FROM alembic_version')); c.execute(text(\"INSERT INTO alembic_version(version_num) VALUES ('017_m02_employment_semantic'), ('018_m02_profile_sections')\")); c.commit(); c.close()"
+          python -c "from app.core.migrations import reconcile_database; reconcile_database()"
+          python scripts/validate_database.py --phase post-migration
+      - run: pytest -q tests/test_migration_bootstrap.py
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PYTHONPATH: .
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/careeros
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt pytest
+      - run: python -m compileall -q app scripts
+      - run: pytest -q tests/test_identity_intelligence.py tests/test_intelligence_engine_contracts.py tests/test_intelligence_retrieval.py tests/test_identity_ai_reconciliation.py tests/test_employment_reconciliation_safety.py tests/test_intelligence_provider_routing.py tests/test_migration_bootstrap.py
+
+  intelligence:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/intelligence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m py_compile app.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npx tsc --noEmit

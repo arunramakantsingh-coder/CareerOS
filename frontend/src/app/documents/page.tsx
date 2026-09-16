@@ -1,298 +1,55 @@
-﻿"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-import DocumentUpload from "@/components/documents/DocumentUpload";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import DocumentUpload from '@/components/documents/DocumentUpload';
+import { apiClient } from '@/lib/api/client';
+import { CareerOSShell, Card, PageHeader, Badge, Button } from '@/components/CareerOSShell';
+import LiveExecutionPanel from '@/components/intelligence/LiveExecutionPanel';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+type DocumentRecord={id:string;filename?:string;file_size?:unknown;document_category?:unknown;document_subcategory?:unknown;status?:unknown;extraction_status?:unknown;classification_confidence?:unknown;created_at?:string;detected_type?:string;verification_status?:string;user_label?:string;processing_status?:any};
+type JobState={jobId:string;documentId:string;status:string;stage:string;failedStage?:string;message:string;progress:number;error?:string;result?:any;startedAt:number};
+const text=(value:unknown,fallback='—')=>{if(value===null||value===undefined||value==='')return fallback;if(typeof value==='string'||typeof value==='number')return String(value);try{return JSON.stringify(value)}catch{return fallback}};
+const stages=[['queued','Queued'],['validating_document','Validate CV'],['routing','Select AI route'],['ai_processing','AI extraction'],['reconciling_profile','Reconcile facts'],['profile_validation','Validate profile'],['persisting','Persist profile'],['completed','Completed']];
 
-interface Document {
-  id: string;
-  original_filename: string;
-  file_size: number;
-  document_category: string;
-  document_subcategory: string | null;
-  status: string;
-  extraction_status: string;
-  created_at: string;
-}
-
-export default function DocumentsPage() {
-  const { user, token, isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isLoading, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchDocuments();
-    }
-  }, [isAuthenticated, token]);
-
-  const fetchDocuments = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/v1/documents/`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      } else {
-        setError("Failed to fetch documents");
-      }
-    } catch (err) {
-      setError("Network error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUploadComplete = (document: Document) => {
-    setDocuments([document, ...documents]);
-  };
-
-  const handleDelete = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-
-    try {
-      const response = await fetch(`${API_URL}/api/v1/documents/${docId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        setDocuments(documents.filter((d) => d.id !== docId));
-      }
-    } catch (err) {
-      alert("Failed to delete document");
-    }
-  };
-
-  const handleExtract = async (docId: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/v1/extraction/extract`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ document_id: docId }),
-      });
-
-      if (response.ok) {
-        alert("Extraction started successfully!");
-        fetchDocuments();
-      } else {
-        alert("Failed to start extraction");
-      }
-    } catch (err) {
-      alert("Network error");
-    }
-  };
-
-  const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      cv: "CV / Resume",
-      employment: "Employment Evidence",
-      certification: "Certification",
-      education: "Education",
-      project: "Project",
-      achievement: "Achievement",
-      other: "Other",
-    };
-    return labels[category] || category;
-  };
-
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      uploaded: "bg-yellow-100 text-yellow-800",
-      processed: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const getExtractionBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      in_progress: "bg-blue-100 text-blue-800",
-      complete: "bg-green-100 text-green-800",
-      failed: "bg-red-100 text-red-800",
-    };
-    return colors[status] || "bg-gray-100 text-gray-800";
-  };
-
-  const categories = [
-    { value: "all", label: "All Documents" },
-    { value: "cv", label: "CV / Resume" },
-    { value: "employment", label: "Employment" },
-    { value: "certification", label: "Certifications" },
-    { value: "education", label: "Education" },
-    { value: "project", label: "Projects" },
-    { value: "achievement", label: "Achievements" },
-    { value: "other", label: "Other" },
-  ];
-
-  const filteredDocuments = selectedCategory === "all"
-    ? documents
-    : documents.filter((d) => d.document_category === selectedCategory);
-
-  if (isLoading || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Professional Document Vault</h1>
-            <p className="text-gray-600">Store and manage your career documents</p>
-          </div>
-          <a
-            href="/profile"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
-          >
-            ← Back to Profile
-          </a>
-        </div>
-
-        {/* Upload Section */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Document</h2>
-          <DocumentUpload onUploadComplete={handleUploadComplete} />
-        </div>
-
-        {/* Document List */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Your Documents</h2>
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-              <span className="text-sm text-gray-500">{documents.length} files</span>
-            </div>
-          </div>
-
-          {documents.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📂</div>
-              <p className="text-gray-600">No documents uploaded yet</p>
-              <p className="text-sm text-gray-500">Upload your CV or other career documents to get started</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {filteredDocuments.map((doc) => (
-                <div key={doc.id} className="py-4 flex items-center justify-between hover:bg-gray-50 px-4 rounded-lg transition-colors">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="text-2xl flex-shrink-0">
-                      {doc.document_category === "cv" ? "📄" :
-                       doc.document_category === "employment" ? "💼" :
-                       doc.document_category === "certification" ? "🏆" :
-                       doc.document_category === "education" ? "🎓" : "📎"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-900 truncate">{doc.original_filename}</p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        <span>{getCategoryLabel(doc.document_category)}</span>
-                        <span>•</span>
-                        <span>{(doc.file_size / 1024).toFixed(1)} KB</span>
-                        <span>•</span>
-                        <span className={`px-2 py-0.5 rounded-full ${getStatusBadge(doc.status)}`}>
-                          {doc.status}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full ${getExtractionBadge(doc.extraction_status)}`}>
-                          {doc.extraction_status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {doc.extraction_status === "pending" && (
-                      <button
-                        onClick={() => handleExtract(doc.id)}
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        Extract
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDelete(doc.id)}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Extraction Summary */}
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-sm font-medium text-gray-900 mb-4">Document Vault Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-gray-900">{documents.length}</p>
-              <p className="text-xs text-gray-500">Total Documents</p>
-            </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">
-                {documents.filter((d) => d.extraction_status === "complete").length}
-              </p>
-              <p className="text-xs text-gray-500">Extracted</p>
-            </div>
-            <div className="text-center p-3 bg-yellow-50 rounded-lg">
-              <p className="text-2xl font-bold text-yellow-600">
-                {documents.filter((d) => d.extraction_status === "pending").length}
-              </p>
-              <p className="text-xs text-gray-500">Pending Extraction</p>
-            </div>
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">
-                {documents.filter((d) => d.document_category === "cv").length}
-              </p>
-              <p className="text-xs text-gray-500">CVs Uploaded</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export default function DocumentsPage(){
+ const {token,isAuthenticated,isLoading}=useAuth();const router=useRouter();
+ const [documents,setDocuments]=useState<DocumentRecord[]>([]);const [loading,setLoading]=useState(true);const [activeJob,setActiveJob]=useState<JobState|null>(null);const [runtimeTrace,setRuntimeTrace]=useState<any>(null);const [showJobPanel,setShowJobPanel]=useState(false);const [message,setMessage]=useState('');const [clock,setClock]=useState(Date.now());
+ useEffect(()=>{if(!isLoading&&!isAuthenticated)router.replace('/login')},[isLoading,isAuthenticated,router]);
+ const load=async()=>{setLoading(true);try{const data=await apiClient.get<DocumentRecord[]>('/api/v1/documents/');setDocuments(Array.isArray(data)?data.filter(d=>text(d.document_category,'')==='cv'):[])}finally{setLoading(false)}};
+ const reconcile=async(documentId:string)=>{setMessage('');setRuntimeTrace(null);const startedAt=Date.now();try{const result=await apiClient.startAIReconciliationJob(documentId);const jobId=result.job_id;if(!jobId)throw new Error('CareerOS did not return a reconciliation job ID');setActiveJob({jobId,documentId,status:'accepted',stage:'queued',message:'CV reconciliation queued',progress:0,startedAt});setShowJobPanel(true);await load()}catch(e:any){setMessage(e.message||'Unable to start CV reconciliation')}};
+ useEffect(()=>{if(!activeJob||activeJob.status==='completed'||activeJob.status==='failed')return;let cancelled=false;const poll=async()=>{try{const result=await apiClient.aiReconciliationJob(activeJob.documentId,activeJob.jobId);if(cancelled)return;setActiveJob(j=>j?{...j,status:result.status,stage:result.stage||j.stage,failedStage:result.failed_stage||j.failedStage,message:result.message||j.message,progress:Number(result.progress||0),error:result.error,result:result.result,startedAt:j.startedAt}:j);if(result.status==='completed'||result.status==='failed'){await load()}}catch(e:any){if(!cancelled)setActiveJob(j=>j?{...j,status:'failed',stage:'failed',failedStage:j.stage,message:'Unable to read reconciliation status',progress:j.progress,error:e.message,startedAt:j.startedAt}:j)}};void poll();const timer=window.setInterval(()=>void poll(),1000);return()=>{cancelled=true;window.clearInterval(timer)}},[activeJob?.jobId,activeJob?.documentId,activeJob?.status]);
+ useEffect(()=>{if(!activeJob)return;let cancelled=false;const pollTrace=async()=>{try{const result=await apiClient.intelligenceRuntimeTraces(50);const filename=documents.find(d=>d.id===activeJob.documentId)?.filename;const candidates=(result.traces||[]).filter((trace:any)=>trace.task_type!=='provider_health_check'&&(trace.context?.document_id===activeJob.documentId||trace.context?.filename===filename));const match=candidates.sort((a:any,b:any)=>new Date(b.updated_at||b.started_at||0).getTime()-new Date(a.updated_at||a.started_at||0).getTime())[0]||null;if(!cancelled)setRuntimeTrace(match)}catch{if(!cancelled)setRuntimeTrace(null)}};void pollTrace();const timer=window.setInterval(()=>void pollTrace(),1000);return()=>{cancelled=true;window.clearInterval(timer)}},[activeJob?.documentId,documents]);
+ useEffect(()=>{if(!activeJob)return;const timer=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(timer)},[activeJob?.jobId,activeJob?.status]);
+ useEffect(()=>{if(activeJob?.status==='completed')setMessage('CV reconciliation completed. Refreshing the Professional Profile data.');if(activeJob?.status==='failed')setMessage(activeJob.error||`CV reconciliation failed during ${activeJob.failedStage||'an unknown stage'}.`)},[activeJob?.status,activeJob?.error,activeJob?.failedStage]);
+ useEffect(()=>{if(isAuthenticated&&token)void load()},[isAuthenticated,token]);
+ if(isLoading||loading)return <div className="grid min-h-screen place-items-center bg-background">Loading CV workspace…</div>;if(!isAuthenticated)return null;
+ const activeDoc=documents.find(d=>d.id===activeJob?.documentId);
+ const runtimeStartedAt=runtimeTrace?.started_at?new Date(runtimeTrace.started_at).getTime():null;
+ const jobElapsed=activeJob?Math.max(0,(clock-activeJob.startedAt)/1000):0;
+ const runtimeElapsed=runtimeStartedAt?Math.max(0,(clock-runtimeStartedAt)/1000):0;
+ const generationEvent=runtimeTrace?.events?.find((event:any)=>event.type==='GENERATION_STARTED');
+ const timeoutSeconds=Number(generationEvent?.timeout_seconds||0);
+ const remainingSeconds=timeoutSeconds?Math.max(0,timeoutSeconds-runtimeElapsed):null;
+ const events=runtimeTrace?.events||[];const latestEvent=events.length?events[events.length-1]:null;
+ const lastActivityAt=latestEvent?.timestamp||runtimeTrace?.updated_at||null;
+ const activityAge=lastActivityAt?Math.max(0,(clock-new Date(lastActivityAt).getTime())/1000):null;
+ const outputChars=Number(runtimeTrace?.output_chars||0);const outputRate=runtimeElapsed>0?outputChars/runtimeElapsed:0;
+ const eventLabels:any={GENERATION_DELTA:'Model is generating structured output',GENERATION_STARTED:'Model generation started',GENERATION_COMPLETED:'Model generation completed',GENERATION_FAILED:'Model generation failed',PROVIDER_STREAM_STARTED:'Provider stream connected',PROVIDER_SELECTED:'AI provider selected',PROVIDER_EXCLUDED:'Provider excluded by routing',PROVIDER_ELIGIBLE:'Provider eligible for execution',TASK_IDENTIFIED:'Task identified',HEALTH_GATE:'Provider health gate checked',ROUTING_FAILED:'Routing failed',FALLBACK_SELECTED:'Fallback provider selected',THINKING_DELTA:'Provider thinking received'};
+ const currentOperation=activeJob?.status==='failed'?`Failed during ${activeJob.failedStage||activeJob.stage}`:latestEvent?.type?(eventLabels[latestEvent.type]||latestEvent.type):activeJob?.message||'Waiting for runtime trace';
+ const streamActive=latestEvent?.type==='GENERATION_DELTA'&&activityAge!=null&&activityAge<5;
+ const runtimeStatus=runtimeTrace?.status||'waiting';
+ const progress=Math.min(100,Math.max(0,Number(activeJob?.progress||0)));
+ const fallbackUsed=Boolean(runtimeTrace?.fallback_used||events.some((event:any)=>event.type==='FALLBACK_SELECTED'));
+ const timerLabel=activeJob?.status==='completed'?'Completed':activeJob?.status==='failed'?'Stopped':jobElapsed;
+ return <CareerOSShell>
+  <PageHeader eyebrow="Professional Identity" title="CV & Documents" description="Upload CV versions here. Reconcile an uploaded CV with AI to build the Professional Profile." action={<Link href="/evidence-library" className="rounded-xl border bg-card px-4 py-2.5 text-sm font-semibold hover:bg-muted">Add Evidence</Link>}/>
+  {message&&<div className="mb-5 rounded-xl border bg-card px-4 py-3 text-sm">{message}</div>}
+  {activeJob&&activeJob.status==='running'&&<button type="button" onClick={()=>setShowJobPanel(true)} className="mb-5 w-full rounded-xl border bg-primary/5 px-4 py-3 text-left text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><div><strong>AI processing in background</strong><span className="ml-2 text-muted-foreground">{activeJob.message} · {progress}%</span>{runtimeTrace?.selected_provider&&<span className="ml-2 text-muted-foreground">· {runtimeTrace.selected_provider} · {runtimeTrace.selected_model}</span>}</div><span className="font-mono text-sm font-bold tabular-nums">{typeof timerLabel==='number'?`${Math.floor(timerLabel/60).toString().padStart(2,'0')}:${Math.floor(timerLabel%60).toString().padStart(2,'0')}`:timerLabel}</span></div></button>}
+  <section id="cv" className="scroll-mt-36"><Card title="Upload CV" className="techno-glow"><div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,.7fr)]"><DocumentUpload category="cv" onUploadComplete={()=>void load()}/><div className="rounded-xl border bg-background/30 p-5"><p className="text-xs font-semibold uppercase tracking-[.14em] text-primary">CV-first identity building</p><h3 className="mt-2 text-lg font-semibold">One Professional Profile</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Upload multiple CV versions when useful. Reconciliation combines explicit CV facts into one CareerOS Professional Profile. Professional certificates and letters belong in the Evidence Library.</p><div className="mt-4 space-y-2 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">CV versions</span><strong>{documents.length}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Processed</span><strong>{documents.filter(d=>text(d.extraction_status,'')==='complete').length}</strong></div></div></div></div></Card></section>
+  <div className="mt-5"><Card title="CV versions"><div className="divide-y">{documents.length?documents.slice(0,20).map(doc=><div key={doc.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{doc.user_label||doc.filename||'CV version'}</p><div className="mt-1 flex flex-wrap gap-2 text-xs"><Badge tone="blue">CV / Resume</Badge><Badge tone={text(doc.status,'')==='failed'?'warn':'muted'}>{text(doc.status,'unknown')}</Badge><Badge tone={text(doc.extraction_status,'')==='complete'?'good':text(doc.extraction_status,'')==='failed'?'warn':'blue'}>{text(doc.extraction_status,'unknown')}</Badge>{typeof doc.classification_confidence==='number'&&<span>{Math.round(Number(doc.classification_confidence)*100)}% classified</span>}</div>{text(doc.extraction_status,'')==='failed'&&<p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Deterministic extraction failed; the CV source text remains available for AI reconciliation.</p>}</div><div className="shrink-0"><Button onClick={()=>void reconcile(doc.id)} disabled={!!activeJob&&activeJob.status==='running'}>{activeJob?.documentId===doc.id&&activeJob.status==='running'?'AI processing…':'Reconcile with AI'}</Button></div></div>):<div className="rounded-xl border border-dashed p-10 text-center"><p className="font-semibold">No CV uploaded</p><p className="mt-1 text-sm text-muted-foreground">Upload your CV to create the first Professional Profile draft.</p></div>}</div></Card></div>
+  {showJobPanel&&activeJob&&<LiveExecutionPanel title="CV Reconciliation" subject={activeDoc?.user_label||activeDoc?.filename||'CV'} jobId={activeJob.jobId} status={activeJob.status} stage={activeJob.stage} progress={progress} operation={currentOperation} message={activeJob.message} provider={runtimeTrace?.selected_provider||null} model={runtimeTrace?.selected_model||null} jobElapsedSeconds={jobElapsed} runtimeElapsedSeconds={runtimeElapsed} activityAgeSeconds={activityAge} timeoutSeconds={timeoutSeconds} remainingSeconds={remainingSeconds} output={runtimeTrace?.output_preview||''} outputChars={outputChars} outputRate={outputRate} thinkingAvailable={Boolean(runtimeTrace?.thinking_available)} thinkingText={runtimeTrace?.thinking_text||''} thinkingChars={Number(runtimeTrace?.thinking_chars||0)} providerMetrics={runtimeTrace?.provider_metrics||{}} events={events} runtimeStatus={runtimeStatus} failure={activeJob.error} stages={stages.map(([key,label])=>({key,label}))} completedMessage="Completed. The Professional Profile can now be refreshed to inspect the reconciled sections." headerActions={<button type="button" onClick={()=>setShowJobPanel(false)} className="rounded-lg border px-3 py-2 text-sm">{activeJob.status==='running'?'Run in background':'Close'}</button>} />}
+ </CareerOSShell>;
 }

@@ -147,9 +147,62 @@ export default function IntelligenceEngine() {
 
   const save = async () => { setBusy('save'); setMessage(''); try { const provider = selectedRef.current; await apiClient.saveIntelligenceProvider({ provider, model: form.model || undefined, base_url: provider === 'gemini' ? undefined : form.base_url || undefined, api_key: form.api_key || undefined, priority: form.priority }); hydrateSelectedForm(providers, provider); await load(); setMessage(`${current?.label || provider} configuration saved. Activation remains a separate operator action.`); } catch (e: any) { setMessage(e.message || 'Unable to save provider'); } finally { setBusy(''); } };
 
-  const test = async () => { setBusy('test'); setMessage(''); try { const provider = selectedRef.current; const result = await apiClient.testIntelligenceProvider({ provider, model: form.model || undefined, base_url: provider === 'gemini' ? undefined : form.base_url || undefined, api_key: form.api_key || undefined }); setForm((f) => ({ ...f, api_key: '' })); await load(); setMessage(`Connection test ${result.provider} / ${result.model} completed successfully.`); } catch (e: any) { setMessage(e.message || 'Provider test failed'); } finally { setBusy(''); } };
+  const test = async () => {
+    setBusy('test'); setMessage(''); setLiveTrace(null); setLiveMode('connection'); setLiveStartedAt(Date.now()); setShowLivePanel(true);
+    try {
+      const provider = selectedRef.current;
+      const result = await apiClient.startIntelligenceProviderTest({ provider, model: form.model || undefined, base_url: provider === 'gemini' ? undefined : form.base_url || undefined, api_key: form.api_key || undefined });
+      setForm((f) => ({ ...f, api_key: '' })); setLiveTraceId(result.trace_id);
+    } catch (e: any) { setBusy(''); setShowLivePanel(false); setLiveMode(null); setMessage(e.message || 'Provider test failed'); }
+  };
 
-  const healthCheck = async (all = false) => { setBusy(all ? 'health-all' : 'health'); setMessage(''); try { const provider = selectedRef.current; const result = await apiClient.runIntelligenceProviderHealthCheck(all ? {} : { provider, model: form.model || undefined, base_url: provider === 'gemini' ? undefined : form.base_url || undefined, api_key: form.api_key || undefined }); setForm((f) => ({ ...f, api_key: '' })); await load(); const ok = (result.providers || []).filter((p: any) => p.health?.status === 'healthy').length; setMessage(all ? `Health check completed: ${ok}/${result.providers?.length || 0} configured providers healthy.` : `Health check completed for ${current?.label || provider}: ${result.providers?.[0]?.health?.status || 'unknown'}.`); } catch (e: any) { setMessage(e.message || 'Provider health check failed'); } finally { setBusy(''); } };
+  const healthCheck = async (all = false) => {
+    setBusy(all ? 'health-all' : 'health'); setMessage(''); setLiveTrace(null); setLiveMode('health'); setLiveStartedAt(Date.now()); setShowLivePanel(true);
+    try {
+      const provider = selectedRef.current;
+      const result = await apiClient.startIntelligenceProviderHealthCheck(all ? {} : { provider, model: form.model || undefined, base_url: provider === 'gemini' ? undefined : form.base_url || undefined, api_key: form.api_key || undefined });
+      setForm((f) => ({ ...f, api_key: '' })); setLiveTraceId(result.trace_id);
+    } catch (e: any) { setBusy(''); setShowLivePanel(false); setLiveMode(null); setMessage(e.message || 'Provider health check failed'); }
+  };
+
+  useEffect(() => {
+    if (!liveTraceId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const trace = await apiClient.intelligenceRuntimeTrace(liveTraceId);
+        if (cancelled) return;
+        setLiveTrace(trace);
+        if (trace.status === 'completed' || trace.status === 'failed') {
+          await load();
+          if (trace.status === 'completed') {
+            if (liveMode === 'health') {
+              const results = (trace.events || []).filter((event: any) => event.type === 'HEALTH_CHECK_RESULT');
+              const healthy = results.filter((event: any) => event.message?.toLowerCase().includes(': healthy')).length;
+              setMessage('Provider health check completed: ' + healthy + '/' + (results.length || 0) + ' healthy.');
+            } else {
+              setMessage('Connection test for ' + selectedRef.current + ' completed successfully.');
+            }
+          } else {
+            const last = (trace.events || []).at(-1);
+            setMessage(last?.error || last?.message || 'Provider check failed.');
+          }
+          setBusy('');
+        }
+      } catch (e: any) {
+        if (!cancelled) { setBusy(''); setMessage(e.message || 'Unable to read live execution trace.'); }
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 700);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [liveTraceId, liveMode]);
+
+  useEffect(() => {
+    if (!showLivePanel || !liveTraceId) return;
+    const timer = window.setInterval(() => setLiveClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [showLivePanel, liveTraceId]);
   const activate = async () => { setBusy('activate'); setMessage(''); try { const provider = selectedRef.current; await apiClient.activateIntelligenceProvider(provider); await load(); setMessage(`${current?.label || provider} activated as the operator-preferred provider. Other active eligible providers remain available for dynamic routing/fallback.`); } catch (e: any) { setMessage(e.message || 'Unable to activate provider'); } finally { setBusy(''); } };
   const deactivate = async () => { setBusy('deactivate'); setMessage(''); try { const provider = selectedRef.current; await apiClient.deactivateIntelligenceProvider(provider); await load(); setMessage(`${current?.label || provider} manually deactivated. It is excluded from runtime routing and fallback regardless of health or priority.`); } catch (e: any) { setMessage(e.message || 'Unable to deactivate provider'); } finally { setBusy(''); } };
   const saveHealthPolicy = async () => { setBusy('health-policy'); setMessage(''); try { const result = await apiClient.updateIntelligenceProviderHealthPolicy(healthPolicy); setHealthPolicy(result); await load(); setMessage(`Automatic health checks ${result.enabled ? 'enabled' : 'disabled'} at ${fmtInterval(result.interval_seconds)} intervals.`); } catch (e: any) { setMessage(e.message || 'Unable to update automatic health policy'); } finally { setBusy(''); } };

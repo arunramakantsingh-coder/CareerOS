@@ -59,6 +59,8 @@ const PROVIDER_CATALOG: Provider[] = [
   { provider: 'xai', label: 'xAI', category: 'cloud', model: 'grok-4.6', base_url: 'https://api.x.ai/v1', configured: false, active: false, priority: 100, capabilities: ['reasoning', 'vision', 'web_search'] },
   { provider: 'groq', label: 'Groq', category: 'cloud', model: 'llama-4-scout-17b-16e-instruct', base_url: 'https://api.groq.com/openai/v1', configured: false, active: false, priority: 100, capabilities: ['fast', 'structured_output'] },
   { provider: 'deepseek', label: 'DeepSeek', category: 'cloud', model: 'deepseek-v4-pro', base_url: 'https://api.deepseek.com', configured: false, active: false, priority: 100, capabilities: ['reasoning', 'coding', 'structured_output', 'long_context'] },
+
+  { provider: 'ainterceptor', label: 'AInterceptor', category: 'self-hosted', model: 'deepseek', base_url: 'https://ainterceptor.taila2310c.ts.net/v1', configured: false, active: false, priority: 100, capabilities: ['reasoning', 'coding', 'structured_output'] },
 ];
 
 const TASKS: [string, string, string[]][] = [

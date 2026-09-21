@@ -19,6 +19,7 @@ PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
     "anthropic": {"label": "Anthropic Claude", "category": "cloud", "model": "claude-sonnet-5", "base_url": "https://api.anthropic.com", "capabilities": ["reasoning", "long_context", "structured_output"]},
     "mistral": {"label": "Mistral AI", "category": "cloud", "model": "mistral-large-latest", "base_url": "https://api.mistral.ai/v1", "capabilities": ["reasoning", "structured_output", "document_intelligence"]},
     "xai": {"label": "xAI", "category": "cloud", "model": "grok-4.6", "base_url": "https://api.x.ai/v1", "capabilities": ["reasoning", "vision", "web_search"]},
+    "ainterceptor": {"label": "AInterceptor", "category": "self-hosted", "model": "deepseek", "base_url": "https://ainterceptor.taila2310c.ts.net/v1", "capabilities": ["reasoning", "coding", "structured_output"]},
     "groq": {"label": "Groq", "category": "cloud", "model": "llama-4-scout-17b-16e-instruct", "base_url": "https://api.groq.com/openai/v1", "capabilities": ["fast", "structured_output"]},
     "deepseek": {"label": "DeepSeek", "category": "cloud", "model": "deepseek-v4-pro", "base_url": "https://api.deepseek.com", "capabilities": ["reasoning", "coding", "structured_output", "long_context"]},
 }

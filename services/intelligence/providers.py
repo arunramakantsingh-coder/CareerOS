@@ -226,7 +226,7 @@ def build_provider(config: dict[str, str], timeout: float) -> AIProvider:
     if provider_name == "ollama": return OllamaProvider(base_url or "http://host.docker.internal:11434", model or config.get("OLLAMA_MODEL", ""), timeout)
     if provider_name == "gemini": return GeminiProvider(api_key, model or "gemini-3.5-flash-lite", timeout)
     if provider_name == "anthropic": return AnthropicProvider(api_key, model or "claude-sonnet-5", base_url or "https://api.anthropic.com", timeout)
-    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b-it:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16e-instruct"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro")}
+    defaults = {"openrouter": ("https://openrouter.ai/api/v1", "google/gemma-4-26b-a4b-it:free"), "openai": ("https://api.openai.com/v1", "gpt-5.6-luna"), "mistral": ("https://api.mistral.ai/v1", "mistral-large-latest"), "xai": ("https://api.x.ai/v1", "grok-4.6"), "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16e-instruct"), "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro"), "ainterceptor": ("https://ainterceptor.taila2310c.ts.net/v1", "deepseek")}
     if provider_name in defaults:
         default_url, default_model = defaults[provider_name]
         return OpenAICompatibleProvider(provider_name, api_key, model or default_model, base_url or default_url, timeout)

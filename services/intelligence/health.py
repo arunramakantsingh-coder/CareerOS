@@ -15,6 +15,7 @@ DEFAULTS = {
     "xai": ("https://api.x.ai/v1", "grok-4.6"),
     "groq": ("https://api.groq.com/openai/v1", "llama-4-scout-17b-16-instruct"),
     "deepseek": ("https://api.deepseek.com", "deepseek-v4-pro"),
+    "ainterceptor": ("https://ainterceptor.taila2310c.ts.net/v1", "deepseek"),
 }
 
 
@@ -86,6 +87,15 @@ async def check_provider_health(
                 ids = {str(item.get("id")) for item in body.get("data", []) if isinstance(item, dict)}; result["status"] = "healthy" if not selected_model or not ids or selected_model in ids else "unhealthy"; result["reachable"] = True
                 if result["status"] != "healthy": result["error"] = f"Configured model is not available: {selected_model}"
                 for key, value in _quota(response.headers).items(): result["quota"].setdefault(key, value)
+            elif name == "ainterceptor":
+                if not api_key: raise ValueError("AInterceptor API key is not configured")
+                root = (base_url or DEFAULTS[name][0]).rstrip("/")
+                payload = {"model": selected_model, "messages": [{"role": "user", "content": "health check"}], "stream": False, "max_tokens": 5}
+                response = await client.post(root + "/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=payload)
+                response.raise_for_status()
+                result["status"] = "healthy"
+                result["reachable"] = True
+                result["quota"] = _quota(response.headers)
             elif name in DEFAULTS:
                 if not api_key: raise ValueError(f"{name} API key is not configured")
                 default_url, _ = DEFAULTS[name]; url = (base_url or default_url).rstrip("/") + "/models"; response = await client.get(url, headers={"Authorization": f"Bearer {api_key}"}); response.raise_for_status(); body = response.json()

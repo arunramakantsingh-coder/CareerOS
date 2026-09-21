@@ -28,15 +28,15 @@ def validate_provider_configuration(provider: str, model: str | None, base_url: 
     selected_url = (base_url if base_url is not None else meta["base_url"] or "").strip().rstrip("/")
     host = _host(selected_url)
 
-    if name != "ollama" and (selected_model.lower() == "gemma3:4b" or host in {"host.docker.internal", "localhost", "127.0.0.1"}):
-        if name == "ainterceptor":
+    if name == "ainterceptor":
         if host != "ainterceptor.taila2310c.ts.net":
             raise ProviderConfigurationError("AInterceptor requires the AInterceptor Tailscale endpoint.")
         if selected_model != "deepseek":
             raise ProviderConfigurationError("AInterceptor requires the configured DeepSeek model.")
         selected_url = selected_url or meta["base_url"]
 
-    if name == "openrouter":
+    if name != "ollama" and (selected_model.lower() == "gemma3:4b" or host in {"host.docker.internal", "localhost", "127.0.0.1"}):
+        if name == "openrouter":
             # Older local development databases could contain the Ollama model and
             # endpoint under the OpenRouter row. Treat that state as legacy data and
             # resolve it to the pinned OpenRouter catalog entry at runtime.

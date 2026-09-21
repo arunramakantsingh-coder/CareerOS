@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CareerOSShell, PageHeader, Card, Badge, Button } from '@/components/CareerOSShell';
+import LiveExecutionPanel from '@/components/intelligence/LiveExecutionPanel';
 import { apiClient } from '@/lib/api/client';
 
 type ProviderHealth = {
@@ -96,6 +97,7 @@ export default function IntelligenceEngine() {
   const [status, setStatus] = useState<any>(null);
   const [healthPolicy, setHealthPolicy] = useState<HealthPolicy>({ enabled: true, interval_seconds: 900, grace_seconds: 60, health_ttl_seconds: 960 });
   const [routing, setRouting] = useState<any>(null); const [taskType, setTaskType] = useState('profile_reconciliation'); const [latestTrace, setLatestTrace] = useState<any>(null);
+  const [liveTraceId, setLiveTraceId] = useState<string | null>(null); const [liveTrace, setLiveTrace] = useState<any>(null); const [showLivePanel, setShowLivePanel] = useState(false); const [liveMode, setLiveMode] = useState<'health' | 'connection' | null>(null); const [liveStartedAt, setLiveStartedAt] = useState(0); const [liveClock, setLiveClock] = useState(Date.now());
   const loadingRef = useRef(false); const selectedRef = useRef('ollama'); const hydratedProviderRef = useRef<string | null>(null);
 
   const current = useMemo(() => providers.find((p) => p.provider === selected) || PROVIDER_CATALOG.find((p) => p.provider === selected), [providers, selected]);

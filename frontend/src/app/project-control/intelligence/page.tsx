@@ -208,6 +208,29 @@ export default function IntelligenceEngine() {
   const saveHealthPolicy = async () => { setBusy('health-policy'); setMessage(''); try { const result = await apiClient.updateIntelligenceProviderHealthPolicy(healthPolicy); setHealthPolicy(result); await load(); setMessage(`Automatic health checks ${result.enabled ? 'enabled' : 'disabled'} at ${fmtInterval(result.interval_seconds)} intervals.`); } catch (e: any) { setMessage(e.message || 'Unable to update automatic health policy'); } finally { setBusy(''); } };
 
   const nextHealthCheck = lastHealthCheck ? new Date(new Date(lastHealthCheck).getTime() + healthPolicy.interval_seconds * 1000) : null; const traceAttempts = latestTrace?.attempts || [];
+  const liveEvents = liveTrace?.events || [];
+  const liveLatestEvent = liveEvents.length ? liveEvents[liveEvents.length - 1] : null;
+  const liveRuntimeStartedAt = liveTrace?.started_at ? new Date(liveTrace.started_at).getTime() : null;
+  const liveJobElapsed = liveStartedAt ? Math.max(0, (liveClock - liveStartedAt) / 1000) : 0;
+  const liveRuntimeElapsed = liveRuntimeStartedAt ? Math.max(0, (liveClock - liveRuntimeStartedAt) / 1000) : 0;
+  const liveActivityAt = liveLatestEvent?.timestamp || liveTrace?.updated_at || null;
+  const liveActivityAge = liveActivityAt ? Math.max(0, (liveClock - new Date(liveActivityAt).getTime()) / 1000) : null;
+  const liveProvider = liveTrace?.selected_provider || liveLatestEvent?.provider || (liveMode === 'connection' ? selectedRef.current : null);
+  const liveModel = liveTrace?.selected_model || liveLatestEvent?.model || (liveMode === 'connection' ? form.model : null);
+  const liveStatus = liveTrace?.status || 'running';
+  const liveHealthStarted = liveEvents.find((event: any) => event.type === 'HEALTH_CYCLE_STARTED');
+  const liveHealthResults = liveEvents.filter((event: any) => event.type === 'HEALTH_CHECK_RESULT');
+  const liveHealthTotal = Number(liveHealthStarted?.total || 1);
+  const liveStage = liveStatus === 'failed' ? 'failed' : liveStatus === 'completed' ? 'completed' : liveMode === 'health'
+    ? liveHealthResults.length ? 'provider_response' : liveLatestEvent?.type === 'HEALTH_CHECK_STARTED' ? 'health_check' : 'validating_configuration'
+    : liveLatestEvent?.type === 'PROVIDER_RESPONSE_RECEIVED' ? 'provider_response' : liveLatestEvent?.type === 'CONNECTION_CHECK_STARTED' ? 'connection_check' : liveLatestEvent?.type === 'CONFIGURATION_VALIDATED' ? 'validating_configuration' : 'queued';
+  const liveProgress = liveStatus === 'completed' ? 100 : liveStatus === 'failed' ? Math.max(5, liveMode === 'health' ? Math.min(95, Math.round((liveHealthResults.length / Math.max(1, liveHealthTotal)) * 95)) : 70) : liveMode === 'health' ? Math.min(95, Math.round((liveHealthResults.length / Math.max(1, liveHealthTotal)) * 95)) : liveStage === 'queued' ? 10 : liveStage === 'validating_configuration' ? 30 : liveStage === 'connection_check' ? 65 : 90;
+  const liveOperation = liveLatestEvent?.message || (liveMode === 'health' ? 'Provider health gate check' : 'Provider connection check');
+  const liveOutput = liveTrace?.output_preview || '';
+  const liveFailure = liveStatus === 'failed' ? (liveLatestEvent?.error || liveLatestEvent?.message || 'Provider check failed.') : undefined;
+  const liveStages = liveMode === 'health'
+    ? [{ key: 'queued', label: 'Queued' }, { key: 'validating_configuration', label: 'Validate provider configuration' }, { key: 'health_check', label: 'Check provider health' }, { key: 'provider_response', label: 'Receive provider response' }, { key: 'completed', label: 'Completed' }]
+    : [{ key: 'queued', label: 'Queued' }, { key: 'validating_configuration', label: 'Validate provider configuration' }, { key: 'connection_check', label: 'Connect to provider' }, { key: 'provider_response', label: 'Receive provider response' }, { key: 'completed', label: 'Completed' }];
 
   return (
     <CareerOSShell>

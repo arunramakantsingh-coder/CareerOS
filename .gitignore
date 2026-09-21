@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,6 +21,7 @@ htmlcov/
 *.sqlite
 *.sqlite3
 postgres_data/
+data/documents/
 
 # Environment
 .env

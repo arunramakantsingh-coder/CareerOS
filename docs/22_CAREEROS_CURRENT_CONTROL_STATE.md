@@ -1,14 +1,16 @@
 # CareerOS — Current Control State
 
 ## Roles
-Developer: DeepSeek
-Lead Architect / QA: ChatGPT
-Runtime / Evidence / UI Acceptance: Arun
+Human / Product Owner / Runtime & Evidence Acceptance: Arun
+Lead AI / Architecture / QA / Verification Gate: capable authorized AI
+Coding AI / Implementation Engineer: capable authorized AI with repository write access
+
+CareerOS is **AI-provider neutral**. No particular AI vendor, model, coding assistant, or provider is required. The Lead AI may also serve as the Coding AI when authorized and technically able to implement directly. If the normal Coding AI becomes unavailable, another capable authorized AI may take over without restarting or redesigning the project.
 
 ## Current State
 The roadmap is being reconciled before additional feature development.
 
-**DeepSeek: WAIT for explicit milestone authorization.**
+**Coding AI: WAIT for explicit milestone authorization.**
 
 ## Migration Clarification
 `/api/v1/migration/countries` belongs to Global Mobility/Migration functionality. Global Mobility is later than the core job-hunting loop and must not become the primary development driver while Career Vault, personas, global discovery, email intelligence, matching, skill gaps, applications and interview assistance remain incomplete.
@@ -39,4 +41,4 @@ Every milestone must leave a locally usable system. Minimum checks:
 - feature-specific UI/API tests
 
 ## Freeze
-Do not move to the next milestone until ChatGPT issues explicit authorization.
+Do not move to the next milestone until the Lead AI issues explicit authorization.

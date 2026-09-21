@@ -641,3 +641,93 @@ def get_completeness(
         missing_items=missing_items,
         suggestions=suggestions
     )
+
+
+# ============================================
+# PROFILE BUILDER CRUD EXTENSIONS
+# ============================================
+
+@router.put("/skills/{skill_id}", response_model=CandidateSkillResponse)
+def update_skill(
+    skill_id: uuid.UUID,
+    skill_data: CandidateSkillUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    skill = db.query(CandidateSkill).filter(CandidateSkill.id == skill_id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    profile = db.query(CandidateProfile).filter(CandidateProfile.id == skill.candidate_id, CandidateProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    for key, value in skill_data.dict(exclude_unset=True).items():
+        setattr(skill, key, value)
+    db.commit(); db.refresh(skill)
+    profile.completeness_score = calculate_completeness(profile.id, db); db.commit()
+    return skill
+
+
+@router.put("/certifications/{certification_id}", response_model=CandidateCertificationResponse)
+def update_certification(
+    certification_id: uuid.UUID,
+    cert_data: CandidateCertificationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    cert = db.query(CandidateCertification).filter(CandidateCertification.id == certification_id).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    profile = db.query(CandidateProfile).filter(CandidateProfile.id == cert.candidate_id, CandidateProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    for key, value in cert_data.dict(exclude_unset=True).items():
+        setattr(cert, key, value)
+    db.commit(); db.refresh(cert)
+    profile.completeness_score = calculate_completeness(profile.id, db); db.commit()
+    return cert
+
+
+@router.delete("/certifications/{certification_id}")
+def delete_certification(certification_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    cert = db.query(CandidateCertification).filter(CandidateCertification.id == certification_id).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certification not found")
+    profile = db.query(CandidateProfile).filter(CandidateProfile.id == cert.candidate_id, CandidateProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    db.delete(cert); db.commit()
+    profile.completeness_score = calculate_completeness(profile.id, db); db.commit()
+    return {"message":"Certification deleted"}
+
+
+@router.put("/educations/{education_id}", response_model=CandidateEducationResponse)
+def update_education(
+    education_id: uuid.UUID,
+    edu_data: CandidateEducationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    edu = db.query(CandidateEducation).filter(CandidateEducation.id == education_id).first()
+    if not edu:
+        raise HTTPException(status_code=404, detail="Education not found")
+    profile = db.query(CandidateProfile).filter(CandidateProfile.id == edu.candidate_id, CandidateProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    for key, value in edu_data.dict(exclude_unset=True).items():
+        setattr(edu, key, value)
+    db.commit(); db.refresh(edu)
+    profile.completeness_score = calculate_completeness(profile.id, db); db.commit()
+    return edu
+
+
+@router.delete("/educations/{education_id}")
+def delete_education(education_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    edu = db.query(CandidateEducation).filter(CandidateEducation.id == education_id).first()
+    if not edu:
+        raise HTTPException(status_code=404, detail="Education not found")
+    profile = db.query(CandidateProfile).filter(CandidateProfile.id == edu.candidate_id, CandidateProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    db.delete(edu); db.commit()
+    profile.completeness_score = calculate_completeness(profile.id, db); db.commit()
+    return {"message":"Education deleted"}

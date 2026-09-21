@@ -248,6 +248,31 @@ export default function IntelligenceEngine() {
         <Card title="Runtime execution trace"><p className="text-sm text-muted-foreground">Live execution traces come from the actual Global Intelligence runtime. No artificial countdown is generated.</p>{latestTrace ? <div className="mt-4 space-y-2"><div className="grid gap-2 sm:grid-cols-3"><div className="rounded-xl border p-3"><p className="text-[11px] text-muted-foreground">Run ID</p><p className="mt-1 break-all text-xs font-semibold">{latestTrace.trace_id}</p></div><div className="rounded-xl border p-3"><p className="text-[11px] text-muted-foreground">Status</p><p className="mt-1 text-xs font-semibold">{latestTrace.status}</p></div><div className="rounded-xl border p-3"><p className="text-[11px] text-muted-foreground">Final provider</p><p className="mt-1 text-xs font-semibold">{latestTrace.final_provider || '—'}</p></div></div><div className="max-h-72 overflow-auto rounded-xl border p-3 font-mono text-[11px]">{(latestTrace.events || []).map((x: any, i: number) => <div key={`${x.timestamp}-${i}`} className="border-b py-1 last:border-0"><span className="text-muted-foreground">{fmtTime(x.timestamp)}</span> · <strong>{x.type}</strong> · {x.message}{x.provider ? ` · ${x.provider}` : ''}{x.model ? ` · ${x.model}` : ''}{x.reason ? ` · ${x.reason}` : ''}</div>)}</div></div> : <div className="mt-4 rounded-xl border p-4 text-xs text-muted-foreground">No runtime trace for {taskType} has been recorded in this backend process yet.</div>}</Card>
       </div>
       <Card className="mt-5" title="Routing policy boundary"><div className="space-y-2 text-sm leading-6 text-muted-foreground"><p><strong className="text-foreground">Hard gates:</strong> configured → valid configuration → active → fresh successful health → task compatibility → quota/request policy.</p><p><strong className="text-foreground">Ranking:</strong> eligible providers are ranked by reliability, recent failures, P95 latency, average latency, operator preference, then manual priority. Manual priority cannot override a hard gate.</p><p><strong className="text-foreground">Lifecycle:</strong> NOT CONFIGURED, CONFIGURED, ACTIVE and DEACTIVATED are control states. HEALTHY, STALE, UNHEALTHY and NOT CHECKED are independent health states.</p><p><strong className="text-foreground">Provider isolation:</strong> each adapter owns its model and endpoint semantics. An Ollama model/endpoint cannot be stored or routed as OpenRouter or Gemini configuration.</p></div></Card>
+      {showLivePanel && liveTraceId && <LiveExecutionPanel
+        title={liveMode === 'health' ? 'Provider Health Check' : 'Provider Connection Check'}
+        subject={liveProvider ? liveProvider + (liveModel ? ' · ' + liveModel : '') : 'Provider'}
+        jobId={liveTraceId}
+        status={liveStatus}
+        stage={liveStage}
+        progress={liveProgress}
+        operation={liveOperation}
+        message={liveLatestEvent?.message || (liveMode === 'health' ? 'Running provider health checks' : 'Testing provider connectivity')}
+        provider={liveProvider}
+        model={liveModel}
+        jobElapsedSeconds={liveJobElapsed}
+        runtimeElapsedSeconds={liveRuntimeElapsed}
+        activityAgeSeconds={liveActivityAge}
+        output={liveOutput}
+        outputChars={Number(liveTrace?.output_chars || 0)}
+        outputRate={liveRuntimeElapsed > 0 ? Number(liveTrace?.output_chars || 0) / liveRuntimeElapsed : 0}
+        events={liveEvents}
+        runtimeStatus={liveStatus}
+        failure={liveFailure}
+        stages={liveStages}
+        completedMessage={liveMode === 'health' ? 'Health check completed. Provider status and routing eligibility have been refreshed.' : 'Connection test completed. Provider response was received by the CareerOS Global Intelligence gateway.'}
+        headerActions={<button type="button" onClick={() => setShowLivePanel(false)} className="rounded-lg border px-3 py-2 text-sm">{liveStatus === 'running' ? 'Run in background' : 'Close'}</button>}
+      />}
+
     </CareerOSShell>
   );
 }

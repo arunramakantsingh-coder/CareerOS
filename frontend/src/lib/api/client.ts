@@ -59,6 +59,7 @@ class ApiClient {
   intelligenceProviderHealthPolicy() { return this.get<any>('/api/v1/intelligence/providers/health-policy'); }
   updateIntelligenceProviderHealthPolicy(body: { enabled: boolean; interval_seconds: number; grace_seconds?: number }) { return this.post<any>('/api/v1/intelligence/providers/health-policy', body); }
   runIntelligenceProviderHealthCheck(body: { provider?: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/health-check', body); }
+  startIntelligenceProviderHealthCheck(body: { provider?: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/health-check/start', body); }
   updateIntelligenceRoutingPolicy(body: { provider: string; fallback_enabled: boolean; daily_request_limit?: number | null }) { return this.post<any>('/api/v1/intelligence/routing/policy', body); }
   intelligenceRoutingPreview(taskType = 'profile_reconciliation') { return this.get<any>(`/api/v1/intelligence/routing/preview?task_type=${encodeURIComponent(taskType)}`); }
   intelligenceRuntimeTraces(limit = 25) { return this.get<any>(`/api/v1/intelligence/runtime-traces?limit=${limit}`); }
@@ -67,6 +68,7 @@ class ApiClient {
   activateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/activate', { provider }); }
   deactivateIntelligenceProvider(provider: string) { return this.post<any>('/api/v1/intelligence/providers/deactivate', { provider }); }
   testIntelligenceProvider(body: { provider: string; model?: string; base_url?: string; api_key?: string; priority?: number }) { return this.post<any>('/api/v1/intelligence/providers/test', body); }
+  startIntelligenceProviderTest(body: { provider: string; model?: string; base_url?: string; api_key?: string }) { return this.post<any>('/api/v1/intelligence/providers/test/start', body); }
   configureIntelligenceProvider(body: { provider: string; model?: string; api_key?: string; base_url?: string }) { return this.post<any>('/api/v1/intelligence/providers/configure', body); }
   personas(userId: string) { return this.get<any[]>(`/api/v1/personas/?user_id=${encodeURIComponent(userId)}`); }
   createPersona(body: any) { return this.post<any>('/api/v1/personas/', body); }

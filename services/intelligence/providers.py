@@ -129,7 +129,7 @@ class OpenAICompatibleProvider:
         messages: list[dict[str, Any]] = []
         if system: messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        payload: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": temperature}
+        payload: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": temperature, "stream": False}
         if response_schema:
             if self.name == "openrouter":
                 payload["response_format"] = {"type": "json_object"}
